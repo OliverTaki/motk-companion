@@ -1,0 +1,10 @@
+{
+  "recipe": "production-prores",
+  "version": 1,
+  "on": { "event": "manual" },
+  "context": ["projectId", "shotId", "take", "takeFolder", "framesFolder"],
+  "steps": [
+    { "id": "validate", "uses": "sequence.validate", "with": { "path": "{framesFolder}" } },
+    { "id": "prores", "uses": "encode.ffmpeg", "needs": ["validate"], "with": { "preset": "prores-422hq", "pattern": "frame_%05d.ppm", "output": "{takeFolder}/prores/master.mov" } }
+  ]
+}

@@ -59,7 +59,7 @@ $companionFiles | ForEach-Object { Copy-PublicFile $companionRoot $_ $companionD
 Copy-PublicTree $companionRoot 'docs\schema' $companionDestination
 @('package.json', 'package-lock.json', 'wrangler.jsonc', 'wrangler.production.example.jsonc') | ForEach-Object { Copy-PublicFile $companionRoot (Join-Path 'cloudflare' $_) $companionDestination }
 @('migrations', 'public', 'scripts', 'src', 'tests') | ForEach-Object { Copy-PublicTree $companionRoot (Join-Path 'cloudflare' $_) $companionDestination }
-@('build-release.ps1', 'build-ecosystem-source-candidate.ps1', 'public-release-gate.ps1', 'runtime-lock.json', 'THIRD_PARTY_NOTICES.md') | ForEach-Object { Copy-PublicFile $companionRoot (Join-Path 'packaging' $_) $companionDestination }
+@('build-release.ps1', 'build-ecosystem-source-candidate.ps1', 'public-release-gate.ps1', 'pre-publish-identity-scrub-guard.ps1', 'runtime-lock.json', 'THIRD_PARTY_NOTICES.md') | ForEach-Object { Copy-PublicFile $companionRoot (Join-Path 'packaging' $_) $companionDestination }
 Copy-PublicTree $companionRoot 'packaging\windows' $companionDestination
 
 $shootDestination = Join-Path $candidateRoot 'motk-shoot'
@@ -107,6 +107,8 @@ foreach ($file in $allFiles) {
 }
 
 if ($failures.Count) { throw "Ecosystem public-source gate failed: $($failures -join '; ')" }
+
+& (Join-Path $PSScriptRoot 'pre-publish-identity-scrub-guard.ps1') -SourceRoot $candidateRoot -SkipGitHistory | Out-Host
 
 $manifest = @($allFiles | Sort-Object FullName | ForEach-Object {
   [ordered]@{

@@ -27,7 +27,7 @@
     "control": true
   },
   "uploadTargets": {
-    "fs-nas": {
+    "fs:PROXY": {
       "type": "fs",
       "root": "\\\\NAS-NAME\\MOTK_TEST",
       "description": "Dedicated disposable NAS test folder. Replace locally."
@@ -45,6 +45,14 @@
   "controlPlaneEndpoint": "",
   "controlPlaneToken": "",
   "controlPlanePollMs": 2000,
+  "productionCapabilities": [
+    "production.recipe_run",
+    "production.proxy_generate",
+    "production.prores_generate",
+    "production.upload",
+    "production.version_publish"
+  ],
+  "productionContextDefaults": {},
   "player": {
     "engine": "ffmpeg-custom",
     "cacheRoot": "./cache/player",

@@ -96,6 +96,9 @@ export class Runner {
 
   async run(recipe, context, options = {}) {
     context = { ...context, ...normalizeIdentity(context) };
+    const takeName = `T${String(Math.max(1, Number(context.take) || 1)).padStart(2, '0')}`;
+    context.takeFolder = context.takeFolder || join(context.shotId || 'PROJECT', takeName);
+    context.framesFolder = context.framesFolder || join(context.takeFolder, 'frames');
     const key = recipeRunKey(recipe, context);
     if (!options.dryRun && this.store.get(key)?.status === 'completed') return { ...this.store.get(key), noop: true };
     const state = options.dryRun ? null : this.store.get(key);

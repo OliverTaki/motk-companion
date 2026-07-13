@@ -36,6 +36,13 @@ function companionTable_(workbook, table) {
     return { sheet: sheet, headers: table.columns.slice() };
   }
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var normalized = headers.map(function (value) { return String(value || '').trim(); });
+  if (normalized.some(function (value) { return /^fi_[A-Za-z0-9._-]+$/i.test(value); })) {
+    throw new Error('core_contract_sheet_conflict:' + table.sheet);
+  }
+  if (normalized.length && !table.columns.some(function (column) { return normalized.indexOf(column) !== -1; })) {
+    throw new Error('companion_sheet_schema_conflict:' + table.sheet);
+  }
   table.columns.forEach(function (column) {
     if (headers.indexOf(column) === -1) {
       headers.push(column);

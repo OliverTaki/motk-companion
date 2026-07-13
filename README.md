@@ -40,6 +40,10 @@ Loop. It claims project-scoped Production commands, executes them through the
 same idempotent Runner used by local recipes, acknowledges the result, and
 recovers an expired claim after a runtime interruption.
 
+Install-local values such as `nasRoot` can be supplied through
+`productionContextDefaults`. Production commands may override those defaults;
+keep local paths and credentials out of published configuration.
+
 The bridge remains independently runnable:
 
 ```text

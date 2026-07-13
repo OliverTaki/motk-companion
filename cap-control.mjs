@@ -16,6 +16,8 @@ export class ControlLoop {
     this.token = String(options.token || '');
     this.runtimeId = String(options.runtimeId || `companion-${hostname()}`).replace(/[^A-Za-z0-9._-]/g, '-').slice(0, 64);
     this.runner = options.runner;
+    this.contextDefaults = options.contextDefaults || {};
+    this.capabilities = new Set(options.capabilities || []);
     this.fetch = options.fetch || globalThis.fetch;
     this.pollMs = Math.max(500, Number(options.pollMs || 2000));
     this.stopped = false;
@@ -31,7 +33,11 @@ export class ControlLoop {
   }
 
   async execute(command) {
-    if (command.action === 'runner.run') return this.runner.handleMessage({ cmd: 'runner.run', recipe: command.payload.recipe, context: command.context, dryRun: Boolean(command.payload.dryRun) });
+    const required = Array.isArray(command.payload?.requiredCapabilities) ? command.payload.requiredCapabilities : [];
+    for (const capability of required) {
+      if (!this.capabilities.has(capability)) throw new Error(`missing Companion capability: ${capability}`);
+    }
+    if (command.action === 'runner.run') return this.runner.handleMessage({ cmd: 'runner.run', recipe: command.payload.recipe, context: { ...this.contextDefaults, ...command.context }, dryRun: Boolean(command.payload.dryRun) });
     if (command.action === 'runner.gate.approve') return this.runner.handleMessage({ cmd: 'runner.gate.approve', key: command.payload.key });
     if (command.action === 'runner.resume') return this.runner.resumeAll();
     throw new Error(`unsupported control command: ${command.action}`);
@@ -76,7 +82,7 @@ function buildFromConfig(configPath) {
     controlPlaneEndpoint: config.controlPlaneEndpoint || '', controlPlaneToken: config.controlPlaneToken || '',
     onEvent: (event) => process.stdout.write(`${JSON.stringify(event)}\n`),
   });
-  return new ControlLoop({ endpoint: config.controlPlaneEndpoint, projectId: config.projectId, token: config.controlPlaneToken, runtimeId: config.runtimeId, pollMs: config.controlPlanePollMs, runner });
+  return new ControlLoop({ endpoint: config.controlPlaneEndpoint, projectId: config.projectId, token: config.controlPlaneToken, runtimeId: config.runtimeId, pollMs: config.controlPlanePollMs, runner, capabilities: config.productionCapabilities || [], contextDefaults: config.productionContextDefaults || {} });
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

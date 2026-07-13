@@ -1,58 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
-
-const state={projectId:'',token:'',timer:null};
-const $=(selector)=>document.querySelector(selector);
-const message=(selector,text,kind='')=>{const el=$(selector);el.textContent=text;el.className=`message ${kind}`.trim()};
-
-async function api(path,options={}){
-  const response=await fetch(path,{...options,headers:{authorization:`Bearer ${state.token}`,'content-type':'application/json',...(options.headers||{})}});
-  let body;try{body=await response.json()}catch{body={}};
-  if(!response.ok||!body.ok)throw new Error(body.error||`Request failed (${response.status})`);
-  return body;
-}
-
-function saveSession(){try{sessionStorage.setItem('motk.production.project',state.projectId);sessionStorage.setItem('motk.production.key',state.token)}catch{/* tab memory remains */}}
-function clearSession(){try{sessionStorage.removeItem('motk.production.project');sessionStorage.removeItem('motk.production.key')}catch{/* no-op */}}
-function setConnected(on){$('#workspace').classList.toggle('hidden',!on);const badge=$('#connectionBadge');badge.textContent=on?`Connected · ${state.projectId}`:'Not connected';badge.className=`badge ${on?'good':'neutral'}`;if(!on&&state.timer){clearInterval(state.timer);state.timer=null}}
-
-function renderCommands(commands){
-  const list=$('#commandList');list.replaceChildren();$('#emptyState').classList.toggle('hidden',commands.length>0);
-  for(const command of commands){
-    const item=document.createElement('li');item.className=`command ${command.status}`;
-    const dot=document.createElement('span');dot.className='dot';dot.setAttribute('aria-hidden','true');
-    const main=document.createElement('div');main.className='command-main';
-    const title=document.createElement('div');title.className='command-title';title.textContent=command.payload?.recipe||command.action;
-    const meta=document.createElement('div');meta.className='command-meta';const take=command.context?.take?` · Take ${command.context.take}`:'';meta.textContent=`${command.context?.shotId||'Project'}${take} · ${new Date(command.createdAt).toLocaleString()}`;
-    if(command.error){const error=document.createElement('div');error.className='command-meta';error.textContent=command.error;main.append(title,meta,error)}else main.append(title,meta);
-    const status=document.createElement('span');status.className='status';status.textContent=command.status.replace('_',' ');
-    item.append(dot,main,status);list.append(item);
-  }
-}
-
-async function refresh(){
-  if(!state.projectId)return;
-  try{const query=new URLSearchParams({projectId:state.projectId,limit:'30'});const body=await api(`/v1/commands?${query}`);renderCommands(body.commands||[]);message('#runMessage','')}
-  catch(error){message('#runMessage',error.message,'error')}
-}
-
-async function connect(projectId,token){
-  state.projectId=projectId.trim();state.token=token.trim();
-  const body=await api(`/v1/projects/${encodeURIComponent(state.projectId)}`);
-  if(body.project.projectId!==state.projectId)throw new Error('Project did not match');
-  saveSession();setConnected(true);message('#connectMessage','Project connected. Your key will be forgotten when this tab closes.','success');
-  await refresh();if(!state.timer)state.timer=setInterval(refresh,3000);
-}
-
-$('#connectForm').addEventListener('submit',async(event)=>{event.preventDefault();const button=event.submitter;button.disabled=true;message('#connectMessage','Connecting…');try{await connect($('#projectId').value,$('#operatorToken').value)}catch(error){state.projectId='';state.token='';setConnected(false);message('#connectMessage',error.message==='unauthorized'?'The project ID or Production key was not accepted.':error.message,'error')}finally{button.disabled=false}});
-$('#forgetButton').addEventListener('click',()=>{state.projectId='';state.token='';clearSession();$('#operatorToken').value='';setConnected(false);message('#connectMessage','Project key forgotten for this tab.','success')});
-$('#refreshButton').addEventListener('click',refresh);
-$('#runForm').addEventListener('submit',async(event)=>{
-  event.preventDefault();const button=$('#runButton');button.disabled=true;message('#runMessage','Sending to Companion…');
-  const context={projectId:state.projectId,shotId:$('#shotId').value.trim(),take:Number($('#take').value)};
-  const payload={recipe:$('#recipe').value.trim(),dryRun:$('#dryRun').checked};
-  try{const query=new URLSearchParams({projectId:state.projectId});await api(`/v1/commands?${query}`,{method:'POST',body:JSON.stringify({action:'runner.run',context,payload,idempotencyKey:`run:${crypto.randomUUID()}`})});message('#runMessage','Sent. Companion will pick it up automatically.','success');await refresh()}
-  catch(error){message('#runMessage',error.message,'error')}finally{button.disabled=false}
-});
-
-try{const project=sessionStorage.getItem('motk.production.project')||'';const token=sessionStorage.getItem('motk.production.key')||'';if(project&&token){$('#projectId').value=project;$('#operatorToken').value=token;connect(project,token).catch(()=>{clearSession();setConnected(false)})}}catch{/* start disconnected */}
+const state={projectId:'',token:'',timer:null,preview:null};
+const $=(s)=>document.querySelector(s);const say=(s,t,k='')=>{const e=$(s);e.textContent=t;e.className=`message ${k}`.trim()};
+async function api(path,options={}){const r=await fetch(path,{...options,headers:{authorization:`Bearer ${state.token}`,'content-type':'application/json',...(options.headers||{})}});let b;try{b=await r.json()}catch{b={}}if(!r.ok||!b.ok)throw new Error(b.error||`Request failed (${r.status})`);return b}
+function save(){try{sessionStorage.setItem('motk.production.project',state.projectId);sessionStorage.setItem('motk.production.key',state.token)}catch{/* tab memory only */}}function clear(){try{sessionStorage.removeItem('motk.production.project');sessionStorage.removeItem('motk.production.key')}catch{/* no-op */}}
+function connected(on){$('#workspace').classList.toggle('hidden',!on);const b=$('#connectionBadge');b.textContent=on?`Connected · ${state.projectId}`:'Not connected';b.className=`badge ${on?'good':'neutral'}`;if(!on&&state.timer){clearInterval(state.timer);state.timer=null}}
+function context(){const c={projectId:state.projectId,shotId:$('#shotId').value.trim(),take:Number($('#take').value)};for(const id of ['takeFolder','framesFolder','nasRoot','sourceFile','uploadTarget','versionId','kind','checksum']){const v=$(`#${id}`).value.trim();if(v)c[id]=v}const n=Number($('#durationFrames').value);if(n>0)c.durationFrames=n;return c}
+function signature(recipe,c){return JSON.stringify([recipe,c.shotId,c.take,c.takeFolder||'',c.framesFolder||'',c.nasRoot||'',c.sourceFile||'',c.uploadTarget||'',c.versionId||'',c.kind||'',c.durationFrames||'',c.checksum||''])}
+function invalidate(){state.preview=null;$('#executeButton').disabled=true;$('#previewResult').classList.add('hidden');say('#runMessage','Preview the plan before execution.')}
+function renderCommands(commands){const list=$('#commandList');list.replaceChildren();$('#emptyState').classList.toggle('hidden',commands.length>0);for(const c of commands){const li=document.createElement('li');li.className=`command ${c.status}`;const dot=document.createElement('span');dot.className='dot';const main=document.createElement('div');main.className='command-main';const title=document.createElement('div');title.className='command-title';title.textContent=`${c.payload?.dryRun?'Preview · ':''}${c.payload?.recipe||c.action}`;const meta=document.createElement('div');meta.className='command-meta';meta.textContent=`${c.context?.shotId||'Project'} · Take ${c.context?.take||'-'} · ${new Date(c.createdAt).toLocaleString()}`;main.append(title,meta);if(c.error){const e=document.createElement('div');e.className='command-meta';e.textContent=c.error;main.append(e)}const status=document.createElement('span');status.className='status';status.textContent=c.status.replace('_',' ');li.append(dot,main,status);list.append(li)}}
+function renderSequences(commands){const groups=new Map();for(const c of commands){const shot=c.context?.shotId||'Project';const row=groups.get(shot)||{shot,take:0,status:'-',at:''};row.take=Math.max(row.take,Number(c.context?.take)||0);if(!row.at||c.createdAt>row.at){row.status=c.status;row.at=c.createdAt}groups.set(shot,row)}const list=$('#sequenceList');list.replaceChildren();const rows=[...groups.values()].sort((a,b)=>a.shot.localeCompare(b.shot));$('#sequenceEmpty').classList.toggle('hidden',rows.length>0);for(const row of rows){const li=document.createElement('li');const t=document.createElement('strong');t.textContent=row.shot;const m=document.createElement('span');m.textContent=`Latest take ${row.take||'-'} · ${row.status}`;li.append(t,m);list.append(li)}}
+function checkPreview(c){if(!state.preview||c.commandId!==state.preview.commandId)return;if(c.status==='completed'){const r=c.result||{};$('#previewFiles').textContent=String((r.files||[]).length);$('#previewBytes').textContent=Number(r.bytes||0).toLocaleString();$('#previewCollisions').textContent=String((r.collisions||[]).length);$('#previewResult').classList.remove('hidden');$('#executeButton').disabled=false;state.preview.completed=true;say('#runMessage','Preview complete. Review the plan, then execute when ready.','success')}else if(c.status==='failed'){state.preview=null;$('#executeButton').disabled=true;say('#runMessage',c.error||'Preview failed.','error')}}
+async function refresh(){if(!state.projectId)return;try{const q=new URLSearchParams({projectId:state.projectId,limit:'50'});const b=await api(`/v1/commands?${q}`);const commands=b.commands||[];renderCommands(commands);renderSequences(commands);if(state.preview){const c=commands.find(x=>x.commandId===state.preview.commandId);if(c)checkPreview(c)}}catch(e){say('#runMessage',e.message,'error')}}
+async function connect(p,t){state.projectId=p.trim();state.token=t.trim();const b=await api(`/v1/projects/${encodeURIComponent(state.projectId)}`);if(b.project.projectId!==state.projectId)throw new Error('Project did not match');save();connected(true);say('#connectMessage','Project connected. Your key will be forgotten when this tab closes.','success');await refresh();if(!state.timer)state.timer=setInterval(refresh,3000)}
+async function send(dryRun){if(!$('#runForm').reportValidity())throw new Error('Complete the required shot details.');const recipe=$('#recipe').value;const c=context();const payload={recipe,dryRun};if(!dryRun){if(!state.preview?.completed||state.preview.signature!==signature(recipe,c))throw new Error('Preview this exact plan before execution.');payload.dryRunCommandId=state.preview.commandId}const q=new URLSearchParams({projectId:state.projectId});const b=await api(`/v1/commands?${q}`,{method:'POST',body:JSON.stringify({action:'runner.run',context:c,payload,idempotencyKey:`${dryRun?'preview':'run'}:${crypto.randomUUID()}`})});if(dryRun){state.preview={commandId:b.commandId,signature:signature(recipe,c),completed:false};$('#executeButton').disabled=true;say('#runMessage','Preview queued. Companion is inspecting the plan…')}else{state.preview=null;$('#previewResult').classList.add('hidden');say('#runMessage','Execution queued. Companion will run the approved plan.','success')}await refresh()}
+$('#connectForm').addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;say('#connectMessage','Connecting…');try{await connect($('#projectId').value,$('#operatorToken').value)}catch(error){state.projectId='';state.token='';connected(false);say('#connectMessage',error.message==='unauthorized'?'The project ID or Production key was not accepted.':error.message,'error')}finally{b.disabled=false}});
+$('#forgetButton').addEventListener('click',()=>{state.projectId='';state.token='';clear();$('#operatorToken').value='';connected(false);say('#connectMessage','Project key forgotten for this tab.','success')});$('#refreshButton').addEventListener('click',refresh);
+$('#previewButton').addEventListener('click',async()=>{const b=$('#previewButton');b.disabled=true;try{await send(true)}catch(e){say('#runMessage',e.message,'error')}finally{b.disabled=false}});$('#executeButton').addEventListener('click',async()=>{const b=$('#executeButton');b.disabled=true;try{await send(false)}catch(e){say('#runMessage',e.message,'error');b.disabled=false}});
+for(const el of document.querySelectorAll('#runForm input,#runForm select'))el.addEventListener('change',invalidate);
+try{const p=sessionStorage.getItem('motk.production.project')||'';const t=sessionStorage.getItem('motk.production.key')||'';if(p&&t){$('#projectId').value=p;$('#operatorToken').value=t;connect(p,t).catch(()=>{clear();connected(false)})}}catch{/* disconnected */}

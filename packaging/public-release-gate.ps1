@@ -7,6 +7,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path -LiteralPath $ReleaseDir).Path
 $failures = [System.Collections.Generic.List[string]]::new()
+& (Join-Path $PSScriptRoot 'pre-publish-identity-scrub-guard.ps1') -SourceRoot $root -SkipGitHistory | Out-Host
 $required = @(
   'RELEASE.json', 'SBOM.spdx.json', 'manifest.json', 'LICENSE', 'LICENSES.md', 'SECURITY.md',
   'PRIVACY.md', 'CONTRIBUTING.md', 'TRADEMARK.md', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md',

@@ -21,6 +21,29 @@ CREATE TABLE IF NOT EXISTS project_tokens (
 
 CREATE INDEX IF NOT EXISTS project_tokens_project_idx ON project_tokens(project_id);
 
+CREATE TABLE IF NOT EXISTS users (
+  member_id TEXT PRIMARY KEY,
+  display_name TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS project_members (
+  project_id TEXT NOT NULL,
+  member_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  capabilities_json TEXT NOT NULL DEFAULT '[]',
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (project_id, member_id),
+  FOREIGN KEY (project_id) REFERENCES projects(project_id),
+  FOREIGN KEY (member_id) REFERENCES users(member_id)
+);
+
+CREATE INDEX IF NOT EXISTS project_members_member_idx ON project_members(member_id);
+
 CREATE TABLE IF NOT EXISTS events (
   event_id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL,

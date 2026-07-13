@@ -1,0 +1,10 @@
+{
+  "recipe": "production-proxy",
+  "version": 1,
+  "on": { "event": "manual" },
+  "context": ["projectId", "shotId", "take", "takeFolder", "framesFolder"],
+  "steps": [
+    { "id": "validate", "uses": "sequence.validate", "with": { "path": "{framesFolder}" } },
+    { "id": "proxy", "uses": "encode.ffmpeg", "needs": ["validate"], "with": { "preset": "player-proxy-1080p25", "pattern": "frame_%05d.ppm", "output": "{takeFolder}/proxy/player.mp4" } }
+  ]
+}

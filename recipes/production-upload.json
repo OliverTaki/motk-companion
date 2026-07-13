@@ -1,0 +1,9 @@
+{
+  "recipe": "production-upload",
+  "version": 1,
+  "on": { "event": "manual" },
+  "context": ["projectId", "shotId", "take", "sourceFile", "uploadTarget"],
+  "steps": [
+    { "id": "upload", "uses": "upload.enqueue", "with": { "target": "{uploadTarget}", "from": "{sourceFile}" } }
+  ]
+}

@@ -9,7 +9,35 @@ const MAX_BODY_BYTES = 64 * 1024;
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const EVENT_PATTERN = /^[a-z][a-z0-9.-]*\.[a-z][a-z0-9.-]*:[a-z][a-z0-9.-]*$/;
 const COMMAND_ACTIONS = new Set(['runner.run', 'runner.gate.approve', 'runner.resume']);
-const TOKEN_SCOPES = new Set(['events.write', 'events.read', 'commands.write', 'commands.read', 'commands.ack', 'project.read', 'admin.project', 'admin.tokens', 'admin.audit']);
+const PRODUCTION_CAPABILITIES = new Set([
+  'production.recipe_run',
+  'production.proxy_generate',
+  'production.prores_generate',
+  'production.upload',
+  'production.version_publish',
+]);
+const RECIPE_CAPABILITIES = new Map([
+  ['post-capture-basic', ['production.proxy_generate', 'production.upload', 'production.version_publish']],
+  ['production-proxy', ['production.proxy_generate']],
+  ['production-prores', ['production.prores_generate']],
+  ['production-upload', ['production.upload']],
+  ['production-version-publish', ['production.version_publish']],
+]);
+const DEFAULT_ACTIVE_RECIPES = [...RECIPE_CAPABILITIES.keys()];
+const ADMIN_CAPABILITIES = new Set(['project.members_manage', 'automation.recipe_activate', 'admin.repair']);
+const TOKEN_SCOPES = new Set([
+  'events.write',
+  'events.read',
+  'commands.write',
+  'commands.read',
+  'commands.ack',
+  'project.read',
+  'admin.project',
+  'admin.tokens',
+  'admin.audit',
+  ...PRODUCTION_CAPABILITIES,
+  ...ADMIN_CAPABILITIES,
+]);
 const COMPANION_SCOPES = ['events.write', 'events.read', 'commands.read', 'commands.ack', 'project.read'];
 
 const securityHeaders = {
@@ -85,7 +113,7 @@ function validateProjectBody(projectId, body) {
   if (!Array.isArray(allowedOrigins) || allowedOrigins.some((origin) => { try { const url = new URL(origin); return url.origin !== origin || !['http:', 'https:'].includes(url.protocol); } catch { return true; } })) {
     throw Object.assign(new Error('invalid_allowed_origins'), { status: 400 });
   }
-  return { projectId, spreadsheetRef: body.spreadsheetRef.trim(), allowedOrigins: [...new Set(allowedOrigins)] };
+  return { projectId, spreadsheetRef: body.spreadsheetRef.trim(), allowedOrigins: [...new Set(allowedOrigins)], activeRecipes: DEFAULT_ACTIVE_RECIPES, recoveryMode: 'normal', recoveryNote: '' };
 }
 
 function validateEvent(body) {
@@ -125,6 +153,34 @@ async function requireProject(request, store, projectId, scope) {
   const project = await store.project(projectId);
   if (!project?.active) throw Object.assign(new Error('project_not_found'), { status: 404 });
   return project;
+}
+
+async function requireScopes(request, store, projectId, scopes) {
+  for (const scope of scopes) await requireProject(request, store, projectId, scope);
+}
+
+function scopesForRole(role) {
+  if (role === 'admin') return ['project.read', 'admin.project', 'admin.tokens', 'admin.audit', ...ADMIN_CAPABILITIES];
+  if (role === 'production') return ['project.read', 'events.read', 'commands.write', ...PRODUCTION_CAPABILITIES];
+  if (role === 'shoot') return ['project.read'];
+  return ['project.read'];
+}
+
+function requiredCapabilitiesForCommand(command) {
+  if (command.action === 'runner.run') {
+    const recipe = String(command.payload?.recipe || '').trim();
+    const recipeCapabilities = RECIPE_CAPABILITIES.get(recipe);
+    if (!recipeCapabilities) throw Object.assign(new Error('recipe_not_active'), { status: 403 });
+    return ['production.recipe_run', ...recipeCapabilities];
+  }
+  if (command.action === 'runner.gate.approve') return ['production.version_publish'];
+  if (command.action === 'runner.resume') return ['production.recipe_run'];
+  return [];
+}
+
+function sameProductionContext(left, right) {
+  const keys = ['projectId', 'shotId', 'take', 'takeFolder', 'framesFolder', 'nasRoot', 'sourceFile', 'uploadTarget', 'versionId', 'kind', 'durationFrames', 'checksum'];
+  return keys.every((key) => JSON.stringify(left?.[key] ?? null) === JSON.stringify(right?.[key] ?? null));
 }
 
 async function handleProjectPut(request, env, store, projectId) {
@@ -168,17 +224,87 @@ async function handleTokenIssue(request, env, store, projectId) {
   if (typeof body.token !== 'string' || body.token.length < 32) return json({ ok: false, error: 'invalid_project_token' }, 400);
   const label = String(body.label || 'operator').trim();
   if (!/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$/.test(label)) return json({ ok: false, error: 'invalid_token_label' }, 400);
-  const scopes = Array.isArray(body.scopes) ? [...new Set(body.scopes)] : [];
+  const scopes = Array.isArray(body.scopes) ? [...new Set(body.scopes)] : scopesForRole(String(body.role || '').trim());
   if (!scopes.length || scopes.some((scope) => !TOKEN_SCOPES.has(scope))) return json({ ok: false, error: 'invalid_token_scopes' }, 400);
   await store.addProjectToken(projectId, await hashToken(body.token), label, scopes);
   await recordAudit(store, projectId, 'project.token.issue', 'success', { label, scopes });
   return json({ ok: true, projectId, label, scopes }, 201);
 }
 
+function memberPath(pathname) {
+  const match = pathname.match(/^\/v1\/projects\/([^/]+)\/members(?:\/([^/]+))?$/);
+  if (!match) return null;
+  try { return { projectId: decodeURIComponent(match[1]), memberId: match[2] ? decodeURIComponent(match[2]) : '' }; } catch { return null; }
+}
+
+function operationsPath(pathname) {
+  const match = pathname.match(/^\/v1\/projects\/([^/]+)\/(backup|restore)$/);
+  if (!match) return null;
+  try { return { projectId: decodeURIComponent(match[1]), action: match[2] }; } catch { return null; }
+}
+
+async function handleProjectOperations(request, store, path) {
+  if (!ID_PATTERN.test(path.projectId) || !(await store.project(path.projectId))?.active) return json({ ok: false, error: 'project_not_found' }, 404);
+  await requireProject(request, store, path.projectId, path.action === 'backup' ? 'admin.audit' : 'admin.repair');
+  if (path.action === 'backup' && request.method === 'GET') {
+    const backup = { format: 'motk-project-backup-v1', createdAt: new Date().toISOString(), project: await store.project(path.projectId), members: await store.listProjectMembers(path.projectId) };
+    await recordAudit(store, path.projectId, 'project.backup.export', 'success', { memberCount: backup.members.length });
+    return json({ ok: true, backup });
+  }
+  if (path.action === 'restore' && request.method === 'POST') {
+    const body = await readJson(request); const backup = body.backup;
+    if (backup?.format !== 'motk-project-backup-v1' || backup.project?.projectId !== path.projectId || !Array.isArray(backup.members)) return json({ ok: false, error: 'invalid_project_backup' }, 400);
+    const recipes = backup.project.activeRecipes;
+    if (!Array.isArray(recipes) || recipes.some((recipe) => !RECIPE_CAPABILITIES.has(String(recipe)))) return json({ ok: false, error: 'invalid_active_recipes' }, 400);
+    const spreadsheetRef = String(backup.project.spreadsheetRef || '').trim(); const allowedOrigins = backup.project.allowedOrigins || [];
+    if (!spreadsheetRef || !Array.isArray(allowedOrigins) || allowedOrigins.some((origin) => { try { const url = new URL(origin); return url.origin !== origin || !['http:', 'https:'].includes(url.protocol); } catch { return true; } })) return json({ ok: false, error: 'invalid_project_backup' }, 400);
+    await store.updateProject(path.projectId, { spreadsheetRef, allowedOrigins: [...new Set(allowedOrigins)], activeRecipes: recipes, recoveryMode: 'recovery', recoveryNote: 'Restored from project backup; Admin review required before returning to normal.' });
+    for (const input of backup.members) {
+      const member = validateMember(path.projectId, String(input.memberId || ''), input);
+      await store.upsertUser(member); await store.upsertProjectMember(member);
+    }
+    await recordAudit(store, path.projectId, 'project.backup.restore', 'success', { memberCount: backup.members.length, recoveryMode: 'recovery' });
+    return json({ ok: true, project: await store.project(path.projectId), restoredMembers: backup.members.length });
+  }
+  return json({ ok: false, error: 'not_found' }, 404);
+}
+
+function validateMember(projectId, memberId, body) {
+  if (!ID_PATTERN.test(projectId)) throw Object.assign(new Error('invalid_project_id'), { status: 400 });
+  const resolvedMemberId = memberId || String(body.memberId || '').trim();
+  if (!ID_PATTERN.test(resolvedMemberId)) throw Object.assign(new Error('invalid_member_id'), { status: 400 });
+  const role = String(body.role || '').trim();
+  if (!['admin', 'production', 'shoot', 'core'].includes(role)) throw Object.assign(new Error('invalid_member_role'), { status: 400 });
+  const displayName = String(body.displayName || '').trim().slice(0, 120);
+  const email = String(body.email || '').trim().slice(0, 254);
+  return { projectId, memberId: resolvedMemberId, displayName, email, role, capabilities: scopesForRole(role) };
+}
+
+async function handleMembers(request, store, path) {
+  if (!ID_PATTERN.test(path.projectId) || !(await store.project(path.projectId))?.active) return json({ ok: false, error: 'project_not_found' }, 404);
+  await requireProject(request, store, path.projectId, 'project.members_manage');
+  if (request.method === 'GET' && !path.memberId) return json({ ok: true, projectId: path.projectId, members: await store.listProjectMembers(path.projectId) });
+  if (request.method === 'PUT') {
+    const member = validateMember(path.projectId, path.memberId, await readJson(request));
+    await store.upsertUser({ memberId: member.memberId, displayName: member.displayName, email: member.email });
+    const saved = await store.upsertProjectMember(member);
+    await recordAudit(store, path.projectId, 'project.member.upsert', 'success', { memberId: saved.memberId, role: saved.role });
+    return json({ ok: true, member: saved }, 200);
+  }
+  if (request.method === 'DELETE' && path.memberId) {
+    await store.removeProjectMember(path.projectId, path.memberId);
+    await recordAudit(store, path.projectId, 'project.member.remove', 'success', { memberId: path.memberId });
+    return json({ ok: true, projectId: path.projectId, memberId: path.memberId, removed: true });
+  }
+  return json({ ok: false, error: 'not_found' }, 404);
+}
+
 async function handleProjectPatch(request, env, store, projectId) {
   if (!ID_PATTERN.test(projectId) || !(await store.project(projectId))?.active) return json({ ok: false, error: 'project_not_found' }, 404);
   if (!adminAuthorized(request, env)) await requireProject(request, store, projectId, 'admin.project');
   const body = await readJson(request);
+  if (!adminAuthorized(request, env) && body.activeRecipes !== undefined) await requireProject(request, store, projectId, 'automation.recipe_activate');
+  if (!adminAuthorized(request, env) && (body.recoveryMode !== undefined || body.recoveryNote !== undefined)) await requireProject(request, store, projectId, 'admin.repair');
   const patch = {};
   if (body.spreadsheetRef !== undefined) {
     if (typeof body.spreadsheetRef !== 'string' || !body.spreadsheetRef.trim()) return json({ ok: false, error: 'invalid_spreadsheet_ref' }, 400);
@@ -188,6 +314,15 @@ async function handleProjectPatch(request, env, store, projectId) {
     if (!Array.isArray(body.allowedOrigins) || body.allowedOrigins.some((origin) => { try { const url = new URL(origin); return url.origin !== origin || !['http:', 'https:'].includes(url.protocol); } catch { return true; } })) return json({ ok: false, error: 'invalid_allowed_origins' }, 400);
     patch.allowedOrigins = [...new Set(body.allowedOrigins)];
   }
+  if (body.activeRecipes !== undefined) {
+    if (!Array.isArray(body.activeRecipes) || body.activeRecipes.some((recipe) => !RECIPE_CAPABILITIES.has(String(recipe)))) return json({ ok: false, error: 'invalid_active_recipes' }, 400);
+    patch.activeRecipes = [...new Set(body.activeRecipes.map(String))];
+  }
+  if (body.recoveryMode !== undefined) {
+    if (!['normal', 'read_only', 'recovery'].includes(body.recoveryMode)) return json({ ok: false, error: 'invalid_recovery_mode' }, 400);
+    patch.recoveryMode = body.recoveryMode;
+  }
+  if (body.recoveryNote !== undefined) patch.recoveryNote = String(body.recoveryNote || '').trim().slice(0, 500);
   if (!Object.keys(patch).length) return json({ ok: false, error: 'empty_project_patch' }, 400);
   const project = await store.updateProject(projectId, patch);
   await recordAudit(store, projectId, 'project.update', 'success', { fields: Object.keys(patch), allowedOriginCount: project.allowedOrigins.length });
@@ -210,6 +345,20 @@ async function handleCommandPost(request, store, url) {
   const projectId = command.context.projectId;
   if ((url.searchParams.get('projectId') || projectId) !== projectId) throw Object.assign(new Error('project_id_mismatch'), { status: 400 });
   const project = await requireProject(request, store, projectId, 'commands.write');
+  if (project.recoveryMode !== 'normal') throw Object.assign(new Error('project_writes_suspended'), { status: 423 });
+  if (command.action === 'runner.run' && !(project.activeRecipes || DEFAULT_ACTIVE_RECIPES).includes(String(command.payload?.recipe || ''))) throw Object.assign(new Error('recipe_not_active'), { status: 403 });
+  const requiredCapabilities = requiredCapabilitiesForCommand(command);
+  await requireScopes(request, store, projectId, requiredCapabilities);
+  if (command.action === 'runner.run' && command.payload.dryRun !== true) {
+    const dryRunCommandId = String(command.payload.dryRunCommandId || '').trim();
+    if (!ID_PATTERN.test(dryRunCommandId)) throw Object.assign(new Error('dry_run_required'), { status: 409 });
+    const preview = await store.command(projectId, dryRunCommandId);
+    const sameContext = sameProductionContext(preview?.context, command.context);
+    if (!preview || preview.action !== 'runner.run' || preview.status !== 'completed' || preview.payload?.dryRun !== true || preview.payload?.recipe !== command.payload.recipe || !sameContext) {
+      throw Object.assign(new Error('dry_run_mismatch'), { status: 409 });
+    }
+  }
+  command.payload = { ...command.payload, requiredCapabilities };
   const headers = corsHeaders(request.headers.get('origin') || '', project);
   const commandId = crypto.randomUUID();
   const result = await store.insertCommand({ commandId, projectId, ...command });
@@ -311,6 +460,10 @@ export async function handleRequest(request, env) {
     const projectId = projectIdFromPath(url.pathname);
     const tokenProjectId = rotatedProjectId(url.pathname);
     const issueProjectId = tokenIssueProjectId(url.pathname);
+    const members = memberPath(url.pathname);
+    const operations = operationsPath(url.pathname);
+    if (operations) return await handleProjectOperations(request, store, operations);
+    if (members) return await handleMembers(request, store, members);
     if (request.method === 'POST' && issueProjectId) return await handleTokenIssue(request, env, store, issueProjectId);
     if (request.method === 'POST' && tokenProjectId) return await handleTokenRotation(request, env, store, tokenProjectId);
     if (request.method === 'PUT' && projectId) return await handleProjectPut(request, env, store, projectId);

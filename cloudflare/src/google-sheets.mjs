@@ -17,6 +17,16 @@ function spreadsheetId(reference) {
 
 function quotedSheet(name) { return `'${name.replaceAll("'", "''")}'`; }
 
+function assertCompatibleHeaders(headers, table) {
+  const normalized = headers.map((value) => String(value || '').trim());
+  if (normalized.some((value) => /^fi_[A-Za-z0-9._-]+$/i.test(value))) {
+    throw new Error(`core_contract_sheet_conflict:${table.sheet}`);
+  }
+  if (normalized.length && !table.columns.some((column) => normalized.includes(column))) {
+    throw new Error(`companion_sheet_schema_conflict:${table.sheet}`);
+  }
+}
+
 async function responseJson(response) {
   let body;
   try { body = await response.json(); } catch { body = {}; }
@@ -70,6 +80,7 @@ export class GoogleSheetsAdapter {
     const range = encodeURIComponent(`${quotedSheet(table.sheet)}!1:1`);
     const headerResult = await this.google(`${base}/values/${range}`);
     const headers = headerResult.values?.[0] || [];
+    assertCompatibleHeaders(headers, table);
     const merged = [...headers];
     for (const column of table.columns) if (!merged.includes(column)) merged.push(column);
     if (merged.length !== headers.length || headers.length === 0) {
