@@ -1,0 +1,5 @@
+{
+  "name": "contact-sheet",
+  "extension": ".jpg",
+  "args": ["-vf", "select=not(mod(n\\,12)),scale=320:-1,tile=4x4", "-frames:v", "1", "-q:v", "3", "-an", "-y"]
+}

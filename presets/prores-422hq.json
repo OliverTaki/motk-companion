@@ -1,0 +1,5 @@
+{
+  "name": "prores-422hq",
+  "extension": ".mov",
+  "args": ["-c:v", "prores_ks", "-profile:v", "3", "-pix_fmt", "yuv422p10le", "-an", "-y"]
+}

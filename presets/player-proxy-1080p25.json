@@ -1,0 +1,5 @@
+{
+  "name": "player-proxy-1080p25",
+  "extension": ".mp4",
+  "args": ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000", "-shortest", "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fps=25", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "25", "-video_track_timescale", "25000", "-c:a", "aac", "-ar", "48000", "-ac", "2", "-movflags", "+faststart", "-y"]
+}

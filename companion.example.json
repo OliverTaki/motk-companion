@@ -1,0 +1,75 @@
+{
+  "host": "127.0.0.1",
+  "allowOrigin": "",
+  "busPort": 8793,
+  "statusPort": 8794,
+  "productionRoot": "./production-test",
+  "captureInbox": "./production-test/.companion-capture",
+  "tokenStore": "./config/pairing-token.json",
+  "jobStore": "./state/jobs.jsonl",
+  "logsDir": "./logs",
+  "ffmpeg": "ffmpeg",
+  "ffprobe": "ffprobe",
+  "recipesDir": "./recipes",
+  "cliCommands": {},
+  "cameraBackend": "dummy",
+  "projectId": "",
+  "runtimeId": "",
+  "capabilities": {
+    "bridge": true,
+    "encode": true,
+    "runner": true,
+    "uploader": true,
+    "assembly": true,
+    "watcher": false,
+    "playout": true,
+    "camera": true,
+    "control": true
+  },
+  "uploadTargets": {
+    "fs-nas": {
+      "type": "fs",
+      "root": "\\\\NAS-NAME\\MOTK_TEST",
+      "description": "Dedicated disposable NAS test folder. Replace locally."
+    },
+    "drive-proxy": {
+      "type": "drive",
+      "folderId": "DRIVE_FOLDER_ID_PLACEHOLDER",
+      "oauthClientPath": "./config/google-oauth-client.json",
+      "tokenStore": "./config/google-token.json",
+      "description": "User-owned Drive proxy target. Keep IDs and tokens out of commits."
+    }
+  },
+  "motkEndpoint": "https://script.google.com/macros/s/DEPLOYMENT_ID_PLACEHOLDER/exec",
+  "motkToken": "SCRIPT_PROPERTY_TOKEN_PLACEHOLDER",
+  "controlPlaneEndpoint": "",
+  "controlPlaneToken": "",
+  "controlPlanePollMs": 2000,
+  "player": {
+    "engine": "ffmpeg-custom",
+    "cacheRoot": "./cache/player",
+    "prefetchSegments": 3,
+    "statusLog": "./logs/playout-status.jsonl"
+  },
+  "camera": {
+    "sigma": {
+      "sdkPath": "C:\\path\\to\\sigma-sdk-or-helper",
+      "backend": "mock",
+      "outputStaging": "./production-test/.camera-staging"
+    },
+    "gphoto2": {
+      "command": "gphoto2"
+    },
+    "digicamcontrol": {
+      "command": "C:\\Program Files (x86)\\digiCamControl\\CameraControlCmd.exe"
+    }
+  },
+  "google": {
+    "mode": "oauth-desktop",
+    "clientConfigPath": "./config/google-oauth-client.json",
+    "tokenStore": "./config/google-token.json",
+    "serviceAccountKeyPath": "./config/service-account-key.json",
+    "spreadsheetId": "SPREADSHEET_ID_PLACEHOLDER",
+    "driveRootId": "DRIVE_ROOT_ID_PLACEHOLDER"
+  }
+}

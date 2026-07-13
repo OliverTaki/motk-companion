@@ -1,0 +1,14 @@
+node_modules/
+*.log
+companion.json
+config/
+state/
+logs/
+cache/
+production-test/
+cloudflare/.wrangler/
+cloudflare/.dev.vars
+cloudflare/node_modules/
+packaging/.cache/
+packaging/dist/
+packaging/source-dist/

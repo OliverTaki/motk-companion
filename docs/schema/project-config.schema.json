@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:motk:schema:project-config:v1",
+  "title": "MOTK Project Configuration",
+  "type": "object",
+  "required": ["projectId", "spreadsheetRef", "mediaAuthority", "storage"],
+  "additionalProperties": false,
+  "properties": {
+    "projectId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$" },
+    "spreadsheetRef": { "type": "string", "minLength": 1 },
+    "mediaAuthority": { "enum": ["drive", "nas", "local"] },
+    "storage": {
+      "type": "object",
+      "required": ["root"],
+      "additionalProperties": false,
+      "properties": {
+        "root": { "type": "string", "minLength": 1 },
+        "cacheRoot": { "type": "string", "minLength": 1 }
+      }
+    },
+    "activeRecipeVersions": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 1 }
+    }
+  }
+}

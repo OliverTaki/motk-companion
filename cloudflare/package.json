@@ -1,0 +1,13 @@
+{
+  "name": "motk-control-plane",
+  "version": "0.3.0-beta.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/environment-separation-selftest.mjs && node tests/google-sheets-selftest.mjs && node tests/worker-selftest.mjs && node tests/multi-project-load-selftest.mjs",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "4.110.0"
+  }
+}

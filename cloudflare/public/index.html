@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <title>MOTK Production</title>
+  <meta name="description" content="Run MOTK production recipes and follow their progress.">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="MOTK Production home"><span class="brand-mark">M</span><span>MOTK <b>Production</b></span></a>
+    <span id="connectionBadge" class="badge neutral">Not connected</span>
+  </header>
+  <main>
+    <section class="hero">
+      <p class="eyebrow">Production control</p>
+      <h1>Send the work.<br><span>Companion handles the rest.</span></h1>
+      <p class="lede">Run approved recipes on a shot, then follow every job from queued to complete. Camera files and media stay in your own storage.</p>
+    </section>
+
+    <section class="panel connect-panel" aria-labelledby="connectTitle">
+      <div>
+        <p class="step">1 · Connect</p>
+        <h2 id="connectTitle">Open your project</h2>
+        <p class="muted">Use the Production key provided by your MOTK administrator. It stays only in this browser tab.</p>
+      </div>
+      <form id="connectForm" class="connect-form">
+        <label><span>Project ID</span><input id="projectId" name="projectId" required pattern="[A-Za-z0-9][A-Za-z0-9._\-]{0,63}" autocomplete="off" placeholder="project_demo"></label>
+        <label><span>Production key</span><input id="operatorToken" name="operatorToken" type="password" required minlength="32" autocomplete="off" placeholder="Paste key"></label>
+        <button class="button primary" type="submit">Connect project</button>
+        <button id="forgetButton" class="button quiet" type="button">Forget this project</button>
+      </form>
+      <p id="connectMessage" class="message" role="status" aria-live="polite"></p>
+    </section>
+
+    <div id="workspace" class="workspace hidden">
+      <section class="panel run-panel" aria-labelledby="runTitle">
+        <div class="section-heading">
+          <div><p class="step">2 · Run</p><h2 id="runTitle">Start a recipe</h2></div>
+          <span class="safety">No overwrite · project scoped</span>
+        </div>
+        <form id="runForm" class="run-form">
+          <label><span>Recipe</span><input id="recipe" required value="post-capture-basic" pattern="[A-Za-z0-9][A-Za-z0-9._\-]{0,63}"></label>
+          <label><span>Shot ID</span><input id="shotId" required placeholder="SC010_C020" pattern="[A-Za-z0-9][A-Za-z0-9._\-]{0,63}"></label>
+          <label><span>Take</span><input id="take" type="number" required min="1" value="1"></label>
+          <label class="check"><input id="dryRun" type="checkbox"><span>Preview only — show the plan without changing files</span></label>
+          <button id="runButton" class="button primary run" type="submit">Send to Companion</button>
+        </form>
+        <p id="runMessage" class="message" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="panel activity-panel" aria-labelledby="activityTitle">
+        <div class="section-heading">
+          <div><p class="step">3 · Follow</p><h2 id="activityTitle">Recent work</h2></div>
+          <button id="refreshButton" class="button quiet" type="button">Refresh</button>
+        </div>
+        <div id="emptyState" class="empty"><strong>No work sent yet.</strong><span>Your first recipe will appear here.</span></div>
+        <ol id="commandList" class="command-list" aria-live="polite"></ol>
+      </section>
+    </div>
+  </main>
+  <footer><span>MOTK Production</span><span>Spreadsheet data stays authoritative. Media never passes through Cloudflare.</span></footer>
+  <script src="/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "recipe": "post-capture-basic",
+  "version": 1,
+  "on": { "event": "shoot.take:reported" },
+  "context": ["projectId", "shotId", "take", "takeFolder", "framesFolder", "nasRoot"],
+  "steps": [
+    { "id": "validate", "uses": "sequence.validate", "with": { "path": "{framesFolder}" } },
+    { "id": "proxy", "uses": "encode.ffmpeg", "needs": ["validate"], "with": { "preset": "player-proxy-1080p25", "pattern": "frame_%05d.ppm", "output": "{takeFolder}/proxy/player.mp4" } },
+    { "id": "nas-copy", "uses": "file.copy", "needs": ["proxy"], "with": { "from": "{proxy.output}", "to": "{nasRoot}/{shotId}/T{take:02}" } },
+    { "id": "upload", "uses": "upload.enqueue", "needs": ["proxy"], "with": { "target": "fs:PROXY", "from": "{proxy.output}" } },
+    { "id": "register", "uses": "motk.version.register", "needs": ["nas-copy", "upload"] },
+    { "id": "assembly", "uses": "playout.assembly.invalidate", "needs": ["register"] }
+  ]
+}

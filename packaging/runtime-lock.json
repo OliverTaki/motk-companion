@@ -1,0 +1,9 @@
+{
+  "node": {
+    "version": "24.18.0",
+    "platform": "win-x64",
+    "url": "https://nodejs.org/dist/v24.18.0/node-v24.18.0-win-x64.zip",
+    "sha256": "0ae68406b42d7725661da979b1403ec9926da205c6770827f33aac9d8f26e821"
+  },
+  "sourceDateEpoch": 1783900800
+}

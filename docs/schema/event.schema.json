@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:motk:schema:event:v1",
+  "title": "MOTK Event Envelope",
+  "type": "object",
+  "required": ["type", "event", "context", "data", "occurredAt"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "const": "event" },
+    "event": { "type": "string", "pattern": "^[a-z][a-z0-9.-]*\\.[a-z][a-z0-9.-]*:[a-z][a-z0-9.-]*$" },
+    "context": { "$ref": "identity.schema.json" },
+    "data": { "type": "object" },
+    "occurredAt": { "type": "string", "format": "date-time" }
+  }
+}

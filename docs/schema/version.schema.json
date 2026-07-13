@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:motk:schema:version:v1",
+  "title": "MOTK Version",
+  "type": "object",
+  "required": ["projectId", "shotId", "versionId", "kind", "fileRef", "durationFrames", "checksum", "valid", "createdAt"],
+  "additionalProperties": false,
+  "properties": {
+    "projectId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$" },
+    "shotId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$" },
+    "take": { "type": "integer", "minimum": 1 },
+    "versionId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$" },
+    "kind": { "enum": ["camera-original", "capture-jpeg", "preview", "proxy", "prores", "editorial", "player-proxy"] },
+    "fileRef": { "type": "string", "minLength": 1 },
+    "durationFrames": { "type": "integer", "minimum": 1 },
+    "checksum": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "valid": { "type": "boolean" },
+    "createdAt": { "type": "string", "format": "date-time" }
+  }
+}
