@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 [CmdletBinding()]
 param(
-  [string]$Version = '0.3.0-beta.1',
+  [string]$Version = '0.4.0-beta.1',
   [string]$OutputRoot = '',
   [string]$RuntimeCache = '',
   [long]$SourceDateEpoch = 0,
@@ -93,7 +93,7 @@ Copy-Item -LiteralPath (Join-Path $runtimeExtract 'README.md') -Destination (Joi
 
 $files = @(
   'assembly.mjs', 'cap-camera-digicamcontrol.mjs', 'cap-camera-gphoto2.mjs', 'cap-camera-sigma.mjs',
-  'cap-control.mjs', 'cap-editor-kdenlive.mjs', 'cap-encode.mjs', 'cap-playout.mjs', 'cap-runner.mjs',
+  'cap-control.mjs', 'cap-editor-kdenlive.mjs', 'cap-encode.mjs', 'cap-media-cut.mjs', 'cap-playout.mjs', 'cap-runner.mjs',
   'cap-uploader.mjs', 'cap-watcher.mjs', 'companion.example.json', 'companion.mjs', 'LICENSE', 'README.md'
 )
 $directories = @('bridge', 'lib', 'presets', 'recipes', 'docs\schema')
@@ -111,6 +111,7 @@ foreach ($document in $releaseDocuments) { Copy-Item -LiteralPath (Join-Path $co
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'docs') | Out-Null
 Copy-Item -LiteralPath (Join-Path $componentRoot 'docs\INSTALL_WINDOWS.md') -Destination (Join-Path $stage 'docs\INSTALL_WINDOWS.md')
 Copy-Item -LiteralPath (Join-Path $componentRoot 'docs\SUPPORTED_ENVIRONMENT.md') -Destination (Join-Path $stage 'docs\SUPPORTED_ENVIRONMENT.md')
+Copy-Item -LiteralPath (Join-Path $componentRoot 'docs\MEDIA_PROCESSING_CONTRACT.md') -Destination (Join-Path $stage 'docs\MEDIA_PROCESSING_CONTRACT.md')
 
 $releaseMetadata = [ordered]@{
   name = 'MOTK Companion'

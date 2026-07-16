@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.4.0-beta.1 — 2026-07-16
+
+- Added the CC0 MOTK Media Job and Media Result 1.0 contracts shared with
+  browser-based MOTK Media Tools.
+- Added Universal VideoCutter Companion execution for marker-based MP4 clips.
+- Companion media jobs accept relative paths below the configured root only,
+  protect originals boundaries, never overwrite, report progress, calculate
+  SHA-256 checksums, and resume already completed marker outputs.
+- Runner now exposes `media.capabilities` and `media.job.run`; the same job can
+  also run through `cap-media-cut.mjs`.
+
+This is a public beta. Use invented or backed-up media for initial evaluation.
+Browser Media Tools remains the recommended surface for ordinary-size jobs;
+Companion handles large or production-root media locally.
+
 - Production now runs five server-known recipes (post-capture, proxy, ProRes,
   upload, Version publish) with a required completed dry-run preview before
   execution, verified independently by the Worker.

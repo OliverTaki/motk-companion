@@ -126,6 +126,20 @@ See `docs/INSTALL_WINDOWS.md` and `docs/SUPPORTED_ENVIRONMENT.md`. Verify the
 published ZIP checksum before installation and keep production originals
 backed up independently.
 
+## MOTK Media Tools processing contract
+
+MOTK Media Tools and Companion share the CC0 Media Job 1.0 contract in
+`docs/MEDIA_PROCESSING_CONTRACT.md`. Universal VideoCutter is the first module:
+small and medium jobs can run privately in browser memory, while the same
+normalized marker job can be executed against relative paths below the
+configured Companion production root with resumable, checksummed,
+create-new-only output.
+
+Use `media.capabilities` and `media.job.run` with `cap-runner.mjs`, or invoke
+`cap-media-cut.mjs --job media-job.json --config companion.json` directly.
+Absolute paths, parent traversal, originals writes, and overwrite policies are
+rejected.
+
 ## Filesystem and preset rules
 
 Any path segment named `raw` is treated as an originals boundary and is

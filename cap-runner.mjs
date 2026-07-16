@@ -10,6 +10,8 @@ import { JournalJobStore } from './lib/job-store.mjs';
 import { Uploader } from './cap-uploader.mjs';
 import { postCoarseStatus, postControlEvent } from './lib/motk-client.mjs';
 import { normalizeIdentity } from './lib/contracts.mjs';
+import { mediaCapabilities } from './lib/media-contracts.mjs';
+import { runMarkerCutJob } from './cap-media-cut.mjs';
 
 const appRoot = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const sha = (value) => createHash('sha256').update(value).digest('hex');
@@ -61,6 +63,11 @@ export class Runner {
   recipesForEvent(event) { return this.recipes.filter((recipe) => recipe.on?.event === event); }
 
   async handleMessage(message) {
+    if (message.cmd === 'media.capabilities') return mediaCapabilities();
+    if (message.cmd === 'media.job.run') return runMarkerCutJob(message.job, {
+      productionRoot: this.productionRoot, store: this.store, storePath: this.store.path,
+      ffmpeg: this.ffmpeg, onEvent: this.onEvent,
+    });
     if (message.type === 'event') return this.handleEvent(message.event, message.data || {});
     if (message.cmd === 'runner.run') {
       const recipe = this.recipes.find((item) => item.recipe === message.recipe);

@@ -49,13 +49,13 @@ New-Item -ItemType Directory -Force -Path $candidateRoot | Out-Null
 $companionDestination = Join-Path $candidateRoot 'motk-companion'
 $companionFiles = @(
   'assembly.mjs', 'cap-camera-digicamcontrol.mjs', 'cap-camera-gphoto2.mjs', 'cap-camera-sigma.mjs',
-  'cap-control.mjs', 'cap-editor-kdenlive.mjs', 'cap-encode.mjs', 'cap-playout.mjs', 'cap-runner.mjs',
+  'cap-control.mjs', 'cap-editor-kdenlive.mjs', 'cap-encode.mjs', 'cap-media-cut.mjs', 'cap-playout.mjs', 'cap-runner.mjs',
   'cap-uploader.mjs', 'cap-watcher.mjs', 'companion.example.json', 'companion.mjs', 'README.md', 'LICENSE',
   'LICENSES.md', 'CHANGELOG.md', 'CONTRIBUTING.md', 'PRIVACY.md', 'SECURITY.md', 'TRADEMARK.md', '.gitignore'
 )
 $companionFiles | ForEach-Object { Copy-PublicFile $companionRoot $_ $companionDestination }
 @('bridge', 'gas', 'lib', 'presets', 'recipes', 'tests') | ForEach-Object { Copy-PublicTree $companionRoot $_ $companionDestination }
-@('CLOUDFLARE_ENVIRONMENTS.md', 'INSTALL_WINDOWS.md', 'SUPPORTED_ENVIRONMENT.md') | ForEach-Object { Copy-PublicFile $companionRoot (Join-Path 'docs' $_) $companionDestination }
+@('CLOUDFLARE_ENVIRONMENTS.md', 'INSTALL_WINDOWS.md', 'MEDIA_PROCESSING_CONTRACT.md', 'SUPPORTED_ENVIRONMENT.md') | ForEach-Object { Copy-PublicFile $companionRoot (Join-Path 'docs' $_) $companionDestination }
 Copy-PublicTree $companionRoot 'docs\schema' $companionDestination
 @('package.json', 'package-lock.json', 'wrangler.jsonc', 'wrangler.production.example.jsonc') | ForEach-Object { Copy-PublicFile $companionRoot (Join-Path 'cloudflare' $_) $companionDestination }
 @('migrations', 'public', 'scripts', 'src', 'tests') | ForEach-Object { Copy-PublicTree $companionRoot (Join-Path 'cloudflare' $_) $companionDestination }

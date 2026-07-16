@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:motk:schema:media-job:1.0",
+  "title": "MOTK Media Job 1.0",
+  "type": "object",
+  "required": ["kind", "schemaVersion", "jobId", "operation", "createdAt", "execution", "source", "output", "timing", "parameters"],
+  "additionalProperties": false,
+  "properties": {
+    "kind": { "const": "motk.media.job" },
+    "schemaVersion": { "const": "1.0" },
+    "jobId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$" },
+    "operation": { "const": "video.cut.markers" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "idempotencyKey": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "context": { "type": "object" },
+    "execution": { "type": "object", "required": ["target"], "additionalProperties": false, "properties": { "target": { "enum": ["auto", "browser", "companion"] } } },
+    "source": {
+      "oneOf": [
+        { "type": "object", "required": ["kind", "name"], "additionalProperties": false, "properties": { "kind": { "const": "browser-file" }, "name": { "type": "string", "minLength": 1 }, "size": { "type": "integer", "minimum": 0 } } },
+        { "type": "object", "required": ["kind", "relativePath"], "additionalProperties": false, "properties": { "kind": { "const": "companion-file" }, "relativePath": { "type": "string", "minLength": 1 }, "name": { "type": "string" } } }
+      ]
+    },
+    "output": {
+      "oneOf": [
+        { "type": "object", "required": ["kind", "collisionPolicy"], "additionalProperties": false, "properties": { "kind": { "const": "browser-download" }, "archive": { "enum": ["zip", "individual"] }, "container": { "const": "mp4" }, "collisionPolicy": { "const": "create-new" } } },
+        { "type": "object", "required": ["kind", "relativePath", "collisionPolicy"], "additionalProperties": false, "properties": { "kind": { "const": "companion-directory" }, "relativePath": { "type": "string", "minLength": 1 }, "container": { "const": "mp4" }, "collisionPolicy": { "const": "create-new" } } }
+      ]
+    },
+    "timing": { "type": "object", "required": ["unit", "fps"], "additionalProperties": false, "properties": { "unit": { "const": "seconds" }, "fps": { "type": "number", "exclusiveMinimum": 0, "maximum": 240 } } },
+    "parameters": {
+      "type": "object", "required": ["mode", "markers"], "additionalProperties": false,
+      "properties": {
+        "mode": { "enum": ["copy", "accurate"] },
+        "markers": { "type": "array", "minItems": 1, "maxItems": 5000, "items": { "$ref": "#/$defs/marker" } }
+      }
+    }
+  },
+  "$defs": {
+    "marker": {
+      "type": "object", "required": ["id", "name", "startSeconds", "endSeconds"], "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "startSeconds": { "type": "number", "minimum": 0 },
+        "endSeconds": { "type": "number", "exclusiveMinimum": 0 },
+        "sourceIn": { "type": "string" },
+        "sourceOut": { "type": "string" }
+      }
+    }
+  }
+}

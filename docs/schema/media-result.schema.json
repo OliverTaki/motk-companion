@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:motk:schema:media-result:1.0",
+  "title": "MOTK Media Result 1.0",
+  "type": "object",
+  "required": ["kind", "schemaVersion", "jobId", "operation", "status", "artifacts", "completedAt"],
+  "additionalProperties": false,
+  "properties": {
+    "kind": { "const": "motk.media.result" },
+    "schemaVersion": { "const": "1.0" },
+    "jobId": { "type": "string" },
+    "operation": { "const": "video.cut.markers" },
+    "status": { "enum": ["succeeded", "failed", "cancelled"] },
+    "completedAt": { "type": "string", "format": "date-time" },
+    "error": { "type": "string" },
+    "artifacts": { "type": "array", "items": { "type": "object", "required": ["markerId", "name", "relativePath", "bytes", "checksum"], "additionalProperties": false, "properties": { "markerId": { "type": "string" }, "name": { "type": "string" }, "relativePath": { "type": "string" }, "bytes": { "type": "integer", "minimum": 0 }, "checksum": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }, "collision": { "type": "boolean" } } } }
+  }
+}
