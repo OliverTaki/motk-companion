@@ -96,7 +96,7 @@ try {
     const value = await httpJson(statusPort, '/status');
     return value?.capabilities?.find((cap) => cap.name === 'bridge' && cap.status === 'up') ? value : null;
   }, 'supervisor startup');
-  if (status.version !== '0.1.0') throw new Error('status version missing');
+  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(String(status.version || ''))) throw new Error('status version missing or invalid');
   const token = JSON.parse(readFileSync(tokenStore, 'utf8')).token;
   const peer = await connect(token);
   await waitUntil(() => peer.messages.find((item) => item.type === 'tether.hello'), 'bridge hello');

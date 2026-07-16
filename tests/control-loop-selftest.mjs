@@ -23,38 +23,62 @@ test('Production command is claimed, executed by Runner, acknowledged, and proje
     const adminHeaders = { authorization: `Bearer ${adminToken}`, 'content-type': 'application/json' };
     const provision = await workerFetch('https://control.test/v1/projects/project_a', { method: 'PUT', headers: adminHeaders, body: JSON.stringify({ spreadsheetRef: 'abcdefghij123456', token: companionToken, allowedOrigins: [] }) });
     assert.equal(provision.status, 201);
-    const issued = await workerFetch('https://control.test/v1/projects/project_a/tokens', { method: 'POST', headers: adminHeaders, body: JSON.stringify({ token: operatorToken, label: 'Production operator', scopes: ['commands.write', 'events.read', 'project.read'] }) });
+    const productionScopes = ['commands.write', 'events.read', 'project.read', 'production.recipe_run', 'production.proxy_generate'];
+    const issued = await workerFetch('https://control.test/v1/projects/project_a/tokens', { method: 'POST', headers: adminHeaders, body: JSON.stringify({ token: operatorToken, label: 'Production operator', scopes: productionScopes }) });
     assert.equal(issued.status, 201);
+
+    const recipe = 'production-proxy';
+    const firstContext = { projectId: 'project_a', shotId: 'shot_001', take: 1 };
+    const previewResponse = await workerFetch('https://control.test/v1/commands?projectId=project_a', {
+      method: 'POST', headers: { authorization: `Bearer ${operatorToken}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'runner.run', context: firstContext, payload: { recipe, dryRun: true }, idempotencyKey: 'production-proxy-preview-shot_001-take_1' }),
+    });
+    assert.equal(previewResponse.status, 202);
+    const previewId = (await previewResponse.json()).commandId;
+
+    const runner = new Runner({ productionRoot: temp, storePath: join(temp, 'jobs.jsonl'), recipes: [{ recipe, version: 1, steps: [{ id: 'notify', uses: 'bridge.cmd', with: { action: 'test' } }] }] });
+    const loop = new ControlLoop({ endpoint: 'https://control.test', projectId: 'project_a', token: companionToken, runtimeId: 'runtime_test', runner, capabilities: ['production.recipe_run', 'production.proxy_generate'], fetch: workerFetch, pollMs: 500 });
+    const previewed = await loop.pollOnce();
+    assert.equal(previewed.status, 'completed');
+    assert.equal(previewed.result.dryRun, true);
 
     const commandResponse = await workerFetch('https://control.test/v1/commands?projectId=project_a', {
       method: 'POST', headers: { authorization: `Bearer ${operatorToken}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ action: 'runner.run', context: { projectId: 'project_a', shotId: 'shot_001', take: 1 }, payload: { recipe: 'remote-recipe' }, idempotencyKey: 'remote-recipe-shot_001-take_1' }),
+      body: JSON.stringify({ action: 'runner.run', context: firstContext, payload: { recipe, dryRunCommandId: previewId }, idempotencyKey: 'production-proxy-shot_001-take_1' }),
     });
     assert.equal(commandResponse.status, 202);
 
-    const runner = new Runner({ productionRoot: temp, storePath: join(temp, 'jobs.jsonl'), recipes: [{ recipe: 'remote-recipe', version: 1, steps: [{ id: 'notify', uses: 'bridge.cmd', with: { action: 'test' } }] }] });
-    const loop = new ControlLoop({ endpoint: 'https://control.test', projectId: 'project_a', token: companionToken, runtimeId: 'runtime_test', runner, fetch: workerFetch, pollMs: 500 });
     const executed = await loop.pollOnce();
     assert.equal(executed.status, 'completed');
 
     const listed = await workerFetch('https://control.test/v1/commands?projectId=project_a', { headers: { authorization: `Bearer ${operatorToken}` } });
     const body = await listed.json();
     assert.equal(listed.status, 200);
-    assert.equal(body.commands.length, 1);
-    assert.equal(body.commands[0].status, 'completed');
-    assert.equal(body.commands[0].runtimeId, 'runtime_test');
+    assert.equal(body.commands.length, 2);
+    assert.ok(body.commands.every((command) => command.status === 'completed'));
+    assert.ok(body.commands.every((command) => command.runtimeId === 'runtime_test'));
 
     const duplicate = await workerFetch('https://control.test/v1/commands?projectId=project_a', {
       method: 'POST', headers: { authorization: `Bearer ${operatorToken}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ action: 'runner.run', context: { projectId: 'project_a', shotId: 'shot_001', take: 1 }, payload: { recipe: 'remote-recipe' }, idempotencyKey: 'remote-recipe-shot_001-take_1' }),
+      body: JSON.stringify({ action: 'runner.run', context: firstContext, payload: { recipe, dryRunCommandId: previewId }, idempotencyKey: 'production-proxy-shot_001-take_1' }),
     });
     assert.equal(duplicate.status, 200);
     assert.equal((await duplicate.json()).duplicate, true);
 
+    const secondContext = { projectId: 'project_a', shotId: 'shot_002', take: 1 };
+    const secondPreview = await workerFetch('https://control.test/v1/commands?projectId=project_a', {
+      method: 'POST', headers: { authorization: `Bearer ${operatorToken}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'runner.run', context: secondContext, payload: { recipe, dryRun: true }, idempotencyKey: 'production-proxy-preview-shot_002-take_1' }),
+    });
+    assert.equal(secondPreview.status, 202);
+    const secondPreviewId = (await secondPreview.json()).commandId;
+    assert.equal((await loop.pollOnce()).status, 'completed');
+
     const second = await workerFetch('https://control.test/v1/commands?projectId=project_a', {
       method: 'POST', headers: { authorization: `Bearer ${operatorToken}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ action: 'runner.run', context: { projectId: 'project_a', shotId: 'shot_002', take: 1 }, payload: { recipe: 'remote-recipe' }, idempotencyKey: 'remote-recipe-shot_002-take_1' }),
+      body: JSON.stringify({ action: 'runner.run', context: secondContext, payload: { recipe, dryRunCommandId: secondPreviewId }, idempotencyKey: 'production-proxy-shot_002-take_1' }),
     });
+    assert.equal(second.status, 202);
     const secondId = (await second.json()).commandId;
     await store.claimCommand('project_a', 'dead_runtime');
     store.commands.get(secondId).claimedAt = '2000-01-01T00:00:00Z';
