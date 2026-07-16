@@ -1,45 +1,47 @@
 # Windows installation and recovery
 
 The public beta is a user-scope package and does not require administrator
-rights. Extract the ZIP completely, inspect `RELEASE.json`, verify the published
-ZIP SHA-256, then double-click:
+rights. Extract the ZIP completely, then double-click:
 
 ```text
 INSTALL MOTK COMPANION.cmd
 ```
 
-The installer opens **MOTK Companion Setup**. Choose the local media folder and
-camera method, then press **Save & Start**. Open **MOTK Companion - Copy Pairing
-Key** from the Windows Start menu and paste the key into **MOTK Shoot → Settings
-→ Camera → Tether**. The setup also opens the official MOTK Shoot page.
+Choose the folder and camera once, then press **SAVE**. After that the Control
+Center has only two large normal-use actions:
+
+- **SHOOT** opens MOTK Shoot, transfers the local pairing key in a URL fragment,
+  removes the fragment immediately, and connects automatically.
+- **FILES** opens the exact local production folder.
+
+The extracted download shows only the installer and `_internal`. The installed
+application shows only `MOTK Companion.exe` and `_internal`. Storage, camera,
+SIGMA SDK selection, manual pairing for another device, and Media Tools remain
+behind the settings control.
 
 It is safe to run the installer or updater while Companion is open. The package
 stops only its own installed processes before the directory swap. A normal
 update restarts Companion automatically; the double-click installer continues
-into Setup and starts it after **Save & Start**.
+into the Control Center and starts it after **SAVE**.
 
 The application is installed under `%LOCALAPPDATA%\Programs\MOTK Companion`.
 Mutable configuration, pairing state, job journals, logs, caches, and production
 test data live separately under `%LOCALAPPDATA%\MOTK\Companion`. The first run
 shows the pairing key once. Store it like a password.
 
-Use the Start menu instead of opening scripts manually:
+The Start menu contains one normal-use entry: **MOTK Companion**. It opens the
+Control Center and starts the local service when needed.
 
-- **MOTK Companion** — start the local service and keep its window open.
-- **MOTK Companion - Setup** — choose the local media folder and camera method.
-- **MOTK Companion - Copy Pairing Key** — copy the private key for MOTK Shoot.
-- **MOTK Companion - Open Local Media** — open the exact selected media folder.
-
-Run `scripts\diagnose.ps1` from the installed directory for a secret-free health
+Run `_internal\scripts\diagnose.ps1` from the installed directory for a secret-free health
 report. Configure a real production root, exact hosted origin, project identity,
 and owner-controlled service keys in the data directory's `companion.json`.
 
-To update, extract the new public beta and run `update.ps1`. The package is checked
+To update, extract the new public beta and run `_internal\update.ps1`. The package is checked
 against its manifest before the existing install changes. The previous install is
 kept under the data directory for rollback, while configuration, pairing keys, and
 jobs remain untouched.
 
-Run installed `uninstall.ps1` to remove the application while retaining data.
+Run installed `_internal\uninstall.ps1` to remove the application while retaining data.
 Use `-RemoveData` only when permanent removal of local configuration, pairing
 keys, job history, logs, caches, and test production files is intended.
 

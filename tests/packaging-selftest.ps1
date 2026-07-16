@@ -43,16 +43,18 @@ try {
 
   $install = Join-Path $root 'installed\MOTK Companion'
   $data = Join-Path $root 'data\Companion'
-  & (Join-Path $first.releaseDirectory 'install.ps1') -InstallDir $install -DataDir $data -NoShortcut | Out-Null
-  Assert-True (Test-Path -LiteralPath (Join-Path $install 'runtime\node.exe')) 'bundled Node runtime was not installed'
-  Assert-True ((& (Join-Path $install 'runtime\node.exe') --version) -eq 'v24.18.0') 'installed Node version differs from the runtime lock'
-  foreach ($friendlyFile in @('INSTALL MOTK COMPANION.cmd', 'START MOTK COMPANION.cmd', 'SETUP MOTK COMPANION.cmd', 'README FIRST.txt', 'scripts\configure.ps1', 'scripts\copy-pairing-key.ps1', 'scripts\open-production-folder.ps1', 'scripts\stop-companion.ps1')) {
+  & (Join-Path $first.releaseDirectory '_internal\install.ps1') -InstallDir $install -DataDir $data -NoShortcut | Out-Null
+  Assert-True (Test-Path -LiteralPath (Join-Path $install '_internal\runtime\node.exe')) 'bundled Node runtime was not installed'
+  Assert-True ((& (Join-Path $install '_internal\runtime\node.exe') --version) -eq 'v24.18.0') 'installed Node version differs from the runtime lock'
+  $frontItems = @(Get-ChildItem -LiteralPath $install -Force | Select-Object -ExpandProperty Name | Sort-Object)
+  Assert-True (($frontItems -join '|') -eq '_internal|MOTK Companion.exe') 'installed front contains items users should not need to touch'
+  foreach ($friendlyFile in @('MOTK Companion.exe', '_internal\scripts\control-center.ps1', '_internal\scripts\stop-companion.ps1')) {
     Assert-True (Test-Path -LiteralPath (Join-Path $install $friendlyFile) -PathType Leaf) "friendly Windows entry is missing: $friendlyFile"
   }
 
   $configPath = Join-Path $data 'companion.json'
   $friendlyMedia = Join-Path $root 'friendly-media'
-  $configured = (& (Join-Path $install 'scripts\configure.ps1') -DataDir $data -InstallDir $install -ProductionRoot $friendlyMedia -CameraBackend dummy -Headless | Out-String) | ConvertFrom-Json
+  $configured = (& (Join-Path $install '_internal\scripts\control-center.ps1') -DataDir $data -InstallDir $install -ProductionRoot $friendlyMedia -CameraBackend dummy -Headless -NoStart | Out-String) | ConvertFrom-Json
   Assert-True ([bool]$configured.ok) 'headless setup did not complete'
   Assert-True ($configured.productionRoot -eq [System.IO.Path]::GetFullPath($friendlyMedia)) 'setup did not save the selected local media folder'
   $config = Get-Content -Raw -LiteralPath $configPath | ConvertFrom-Json
@@ -66,10 +68,10 @@ try {
   $config | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $configPath -Encoding utf8
   New-Item -ItemType Directory -Force -Path (Join-Path $data 'config'),(Join-Path $data 'state') | Out-Null
   Set-Content -LiteralPath (Join-Path $data 'state\jobs.jsonl') -Value '{"sentinel":"keep-job"}' -Encoding utf8
-  $entryPoint = Join-Path $install 'app\companion.mjs'
+  $entryPoint = Join-Path $install '_internal\app\companion.mjs'
   $smokeStdout = Join-Path $root 'installed-smoke.stdout.txt'
   $smokeStderr = Join-Path $root 'installed-smoke.stderr.txt'
-  $process = Start-Process -FilePath (Join-Path $install 'runtime\node.exe') -ArgumentList @("`"$entryPoint`"", '--config', "`"$configPath`"") -WindowStyle Hidden -RedirectStandardOutput $smokeStdout -RedirectStandardError $smokeStderr -PassThru
+  $process = Start-Process -FilePath (Join-Path $install '_internal\runtime\node.exe') -ArgumentList @("`"$entryPoint`"", '--config', "`"$configPath`"") -WindowStyle Hidden -RedirectStandardOutput $smokeStdout -RedirectStandardError $smokeStderr -PassThru
   try {
     $status = $null
     for ($attempt = 0; $attempt -lt 50 -and -not $status; $attempt++) {
@@ -81,7 +83,7 @@ try {
       throw "installed Companion did not start with the bundled runtime; stdout=$stdoutText stderr=$stderrText"
     }
     Assert-True ([bool]$status.ok) 'installed Companion status response was not healthy'
-    $diagnostic = (& (Join-Path $install 'scripts\diagnose.ps1') -DataDir $data | Out-String) | ConvertFrom-Json
+    $diagnostic = (& (Join-Path $install '_internal\scripts\diagnose.ps1') -DataDir $data | Out-String) | ConvertFrom-Json
     Assert-True ([bool]$diagnostic.ok) 'installed diagnostic reported a required failure'
     Assert-True ([bool](($diagnostic.checks | Where-Object name -eq 'status').ok)) 'installed diagnostic did not observe the running status endpoint'
   } catch {
@@ -95,17 +97,17 @@ try {
   $jobHash = (Get-FileHash -LiteralPath (Join-Path $data 'state\jobs.jsonl') -Algorithm SHA256).Hash
 
   $third = Invoke-Build '0.3.0-test.2' (Join-Path $root 'dist-c') -SkipArchive
-  $tamperPath = Join-Path $third.releaseDirectory 'app\README.md'
+  $tamperPath = Join-Path $third.releaseDirectory '_internal\app\README.md'
   $originalBytes = [System.IO.File]::ReadAllBytes($tamperPath)
   [System.IO.File]::WriteAllBytes($tamperPath, $originalBytes + [byte]0x20)
   $tamperRejected = $false
-  try { & (Join-Path $third.releaseDirectory 'update.ps1') -InstallDir $install -DataDir $data -NoShortcut | Out-Null } catch { $tamperRejected = $true }
+  try { & (Join-Path $third.releaseDirectory '_internal\update.ps1') -InstallDir $install -DataDir $data -NoShortcut | Out-Null } catch { $tamperRejected = $true }
   Assert-True $tamperRejected 'tampered update package was accepted'
   $stateBefore = Get-Content -Raw -LiteralPath (Join-Path $data 'install-state.json') | ConvertFrom-Json
   Assert-True ($stateBefore.version -eq '0.3.0-test.1') 'rejected update changed installed state'
   [System.IO.File]::WriteAllBytes($tamperPath, $originalBytes)
 
-  & (Join-Path $third.releaseDirectory 'update.ps1') -InstallDir $install -DataDir $data -NoShortcut | Out-Null
+  & (Join-Path $third.releaseDirectory '_internal\update.ps1') -InstallDir $install -DataDir $data -NoShortcut | Out-Null
   $process.Refresh()
   Assert-True $process.HasExited 'valid update did not stop the running installed Companion'
   $restartedStatus = $null
@@ -120,12 +122,12 @@ try {
   Assert-True ((Get-FileHash -LiteralPath (Join-Path $data 'state\jobs.jsonl') -Algorithm SHA256).Hash -eq $jobHash) 'update changed the job journal'
   Assert-True (Test-Path -LiteralPath $stateAfter.previousInstall) 'valid update did not retain a rollback installation'
 
-  & (Join-Path $install 'uninstall.ps1') -InstallDir $install -DataDir $data -NoShortcut | Out-Null
+  & (Join-Path $install '_internal\uninstall.ps1') -InstallDir $install -DataDir $data -NoShortcut | Out-Null
   Assert-True (-not (Test-Path -LiteralPath $install)) 'uninstall left the application directory behind'
   Assert-True (Test-Path -LiteralPath (Join-Path $data 'config\pairing-token.json')) 'default uninstall removed retained data'
 
-  & (Join-Path $third.releaseDirectory 'install.ps1') -InstallDir $install -DataDir $data -NoShortcut | Out-Null
-  & (Join-Path $install 'uninstall.ps1') -InstallDir $install -DataDir $data -RemoveData -NoShortcut | Out-Null
+  & (Join-Path $third.releaseDirectory '_internal\install.ps1') -InstallDir $install -DataDir $data -NoShortcut | Out-Null
+  & (Join-Path $install '_internal\uninstall.ps1') -InstallDir $install -DataDir $data -RemoveData -NoShortcut | Out-Null
   Assert-True (-not (Test-Path -LiteralPath $install)) 'explicit data-removal uninstall left the application directory behind'
   Assert-True (-not (Test-Path -LiteralPath $data)) 'explicit data-removal uninstall left the data directory behind'
 
@@ -133,7 +135,7 @@ try {
   Write-Output "Built deterministic release ZIP $($first.archiveSha256), launched the installed Companion and diagnostics with bundled Node, updated it while running with an automatic stop/restart, rejected a tampered update, preserved config/token/jobs across update, retained data on default uninstall, and removed it only on explicit request."
 } finally {
   if ($install) {
-    $stopHelper = Join-Path $install 'scripts\stop-companion.ps1'
+    $stopHelper = Join-Path $install '_internal\scripts\stop-companion.ps1'
     if (Test-Path -LiteralPath $stopHelper -PathType Leaf) { try { & $stopHelper -InstallDir $install | Out-Null } catch {} }
   }
   Remove-SelfTestTree $root

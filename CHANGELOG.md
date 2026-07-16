@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 0.4.0-beta.4 - 2026-07-16
+
+- Replaces separate Start-menu actions and the text-heavy setup form with one
+  visual Control Center: `SHOOT`, `FILES`, and two smaller secondary actions.
+- Opens MOTK Shoot with one-click, fragment-only pairing. The web page consumes
+  the local pairing key, removes it from browser history, stores it only for the
+  current tab, and connects automatically.
+- Moves storage, camera selection, SIGMA SDK selection, manual pairing, and Media
+  Tools behind the main surface instead of presenting them during every launch.
+- Reduces the extracted download to one user action plus `_internal`, and reduces
+  the installed application front to `MOTK Companion.exe` plus `_internal`.
+- Keeps update rollback, tamper rejection, configuration, pairing keys, job
+  journals, and production media compatible with the former flat beta layout.
+
 ## 0.4.0-beta.3 — 2026-07-16
 
 - Windows install and update now detect and stop only the installed Companion

@@ -44,9 +44,10 @@ $patterns = @(
   '(?i)"(?:client_secret|refresh_token|private_key)"\s*:\s*"(?!\s*(?:|PLACEHOLDER|REPLACE_ME)\s*")[^"]+"'
 ) + $privatePatterns
 
-$textExtensions = @('.md', '.txt', '.json', '.jsonc', '.mjs', '.js', '.ts', '.astro', '.html', '.css', '.ps1', '.gs', '.xml', '.yml', '.yaml', '.toml', '.sql')
+$textExtensions = @('.md', '.txt', '.json', '.jsonc', '.mjs', '.js', '.ts', '.astro', '.html', '.css', '.ps1', '.cmd', '.gs', '.xml', '.yml', '.yaml', '.toml', '.sql')
 $allFiles = Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object {
-  $_.FullName -notmatch '(?i)[\\/](?:\.git|node_modules|\.wrangler|\.cache|dist|tmp)[\\/]'
+  $candidate = $_.FullName.Substring($root.Length).TrimStart('\', '/')
+  $candidate -notmatch '(?i)(?:^|[\\/])(?:\.git|node_modules|\.wrangler|\.cache|dist|tmp)(?:[\\/]|$)'
 }
 foreach ($file in $allFiles) {
   if ($textExtensions -notcontains $file.Extension.ToLowerInvariant()) { continue }

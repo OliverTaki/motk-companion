@@ -15,10 +15,10 @@ remain model- and workflow-specific.
 ## Windows quick start
 
 Extract the Windows ZIP and double-click **INSTALL MOTK COMPANION.cmd**. Choose
-the local media folder and camera method, then press **Save & Start**. From the
-Windows Start menu, use **MOTK Companion - Copy Pairing Key** and paste the key
-into **MOTK Shoot → Settings → Camera → Tether**. No PowerShell command needs to
-be typed. **MOTK Companion - Open Local Media** opens the exact selected folder.
+storage and camera once, then use the visual Control Center: **SHOOT** opens and
+pairs MOTK Shoot automatically, while **FILES** opens the exact local production
+folder. Settings and manual pairing for another device are behind the gear
+control. No PowerShell command needs to be typed.
 
 The Companion supervisor starts the absorbed bridge, monitors its lifecycle,
 and serves JSON diagnostics at `/status`. A 32-byte first-run pairing token is

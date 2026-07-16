@@ -12,3 +12,4 @@ cloudflare/node_modules/
 packaging/.cache/
 packaging/dist/
 packaging/source-dist/
+packaging/*.test.exe

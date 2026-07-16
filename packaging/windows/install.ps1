@@ -44,7 +44,10 @@ New-Item -ItemType Directory -Force -Path (Split-Path $installPath -Parent),$dat
 $stage = "$installPath.stage-$PID"
 Remove-SafeTree $stage
 New-Item -ItemType Directory -Force -Path $stage | Out-Null
-Get-ChildItem -LiteralPath $packageRoot -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force }
+$stageInternal = Join-Path $stage '_internal'
+New-Item -ItemType Directory -Force -Path $stageInternal | Out-Null
+Get-ChildItem -LiteralPath $packageRoot -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $stageInternal -Recurse -Force }
+Copy-Item -LiteralPath (Join-Path $packageRoot 'MOTK Companion.exe') -Destination (Join-Path $stage 'MOTK Companion.exe')
 
 $backup = $null
 $backupArchive = $null
@@ -61,9 +64,12 @@ try {
     $backupRoot = Join-Path $dataPath 'updates'
     New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null
     $stamp = [DateTimeOffset]::UtcNow.ToString('yyyyMMddTHHmmssfffZ')
-    $completeExisting = (Test-Path -LiteralPath (Join-Path $installPath 'RELEASE.json') -PathType Leaf) -and
+    $completeExisting = ((Test-Path -LiteralPath (Join-Path $installPath '_internal\RELEASE.json') -PathType Leaf) -and
+      (Test-Path -LiteralPath (Join-Path $installPath '_internal\runtime\node.exe') -PathType Leaf) -and
+      (Test-Path -LiteralPath (Join-Path $installPath '_internal\app\companion.mjs') -PathType Leaf)) -or
+      ((Test-Path -LiteralPath (Join-Path $installPath 'RELEASE.json') -PathType Leaf) -and
       (Test-Path -LiteralPath (Join-Path $installPath 'runtime\node.exe') -PathType Leaf) -and
-      (Test-Path -LiteralPath (Join-Path $installPath 'app\companion.mjs') -PathType Leaf)
+      (Test-Path -LiteralPath (Join-Path $installPath 'app\companion.mjs') -PathType Leaf))
     $backupArchive = Join-Path $backupRoot "$(if ($completeExisting) { 'install' } else { 'partial-recovery' })-$stamp"
     Copy-Item -LiteralPath $installPath -Destination $backupArchive -Recurse -Force
     if ($completeExisting) { $backup = $backupArchive }
@@ -91,7 +97,7 @@ if (-not (Test-Path -LiteralPath $configPath)) {
     logsDir = (Join-Path $dataPath 'logs')
     ffmpeg = 'ffmpeg'
     ffprobe = 'ffprobe'
-    recipesDir = (Join-Path $installPath 'app\recipes')
+    recipesDir = (Join-Path $installPath '_internal\app\recipes')
     cliCommands = [ordered]@{}
     cameraBackend = 'dummy'
     sigmaSdkZip = ''
@@ -110,6 +116,14 @@ if (-not (Test-Path -LiteralPath $configPath)) {
   $config | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $configPath -Encoding utf8
 }
 
+# Updating the former flat beta layout changes only this installed-code pointer.
+$installedConfig = Get-Content -Raw -LiteralPath $configPath | ConvertFrom-Json
+$expectedRecipes = Join-Path $installPath '_internal\app\recipes'
+if ([string]$installedConfig.recipesDir -ne $expectedRecipes) {
+  $installedConfig.recipesDir = $expectedRecipes
+  $installedConfig | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $configPath -Encoding utf8
+}
+
 $state = [ordered]@{ version = [string]$release.version; installDir = $installPath; dataDir = $dataPath; installedAt = [DateTimeOffset]::UtcNow.ToString('o'); previousInstall = $backup }
 $state | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $dataPath 'install-state.json') -Encoding utf8
 
@@ -117,17 +131,15 @@ if (-not $NoShortcut) {
   $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\MOTK'
   New-Item -ItemType Directory -Force -Path $startMenu | Out-Null
   $shell = New-Object -ComObject WScript.Shell
-  function New-PowerShellShortcut([string]$Name, [string]$Script) {
-    $shortcut = $shell.CreateShortcut((Join-Path $startMenu "$Name.lnk"))
-    $shortcut.TargetPath = 'powershell.exe'
-    $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $installPath $Script)`" -DataDir `"$dataPath`""
-    $shortcut.WorkingDirectory = $installPath
-    $shortcut.Save()
+  foreach ($oldName in @('MOTK Companion - Setup.lnk', 'MOTK Companion - Copy Pairing Key.lnk', 'MOTK Companion - Open Local Media.lnk')) {
+    $oldShortcut = Join-Path $startMenu $oldName
+    if (Test-Path -LiteralPath $oldShortcut) { Remove-Item -LiteralPath $oldShortcut -Force }
   }
-  New-PowerShellShortcut 'MOTK Companion' 'scripts\motk-companion.ps1'
-  New-PowerShellShortcut 'MOTK Companion - Setup' 'scripts\configure.ps1'
-  New-PowerShellShortcut 'MOTK Companion - Copy Pairing Key' 'scripts\copy-pairing-key.ps1'
-  New-PowerShellShortcut 'MOTK Companion - Open Local Media' 'scripts\open-production-folder.ps1'
+  $shortcut = $shell.CreateShortcut((Join-Path $startMenu 'MOTK Companion.lnk'))
+  $shortcut.TargetPath = Join-Path $installPath 'MOTK Companion.exe'
+  $shortcut.Arguments = ''
+  $shortcut.WorkingDirectory = $installPath
+  $shortcut.Save()
 }
 
 $oldBackups = Get-ChildItem -LiteralPath (Join-Path $dataPath 'updates') -Directory -Filter 'install-*' -ErrorAction SilentlyContinue | Sort-Object LastWriteTimeUtc -Descending | Select-Object -Skip 2
@@ -136,7 +148,7 @@ $oldPartialBackups = Get-ChildItem -LiteralPath (Join-Path $dataPath 'updates') 
 foreach ($old in $oldPartialBackups) { Remove-SafeTree $old.FullName }
 
 if ($stopResult.wasRunning -and -not $NoRestart) {
-  $launcher = Join-Path $installPath 'scripts\motk-companion.ps1'
+  $launcher = Join-Path $installPath '_internal\scripts\motk-companion.ps1'
   Start-Process -FilePath 'powershell.exe' -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$launcher`" -DataDir `"$dataPath`"" -WorkingDirectory $installPath -WindowStyle Hidden
 }
 

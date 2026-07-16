@@ -13,7 +13,8 @@ $statePath = Join-Path $dataPath 'install-state.json'
 if (-not $InstallDir -and (Test-Path -LiteralPath $statePath)) { $InstallDir = [string](Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json).installDir }
 if (-not $InstallDir) { $InstallDir = Join-Path $env:LOCALAPPDATA 'Programs\MOTK Companion' }
 $installPath = [System.IO.Path]::GetFullPath($InstallDir)
-$stopScript = Join-Path $installPath 'scripts\stop-companion.ps1'
+$stopScript = Join-Path $installPath '_internal\scripts\stop-companion.ps1'
+if (-not (Test-Path -LiteralPath $stopScript -PathType Leaf)) { $stopScript = Join-Path $installPath 'scripts\stop-companion.ps1' }
 
 function Remove-SafeTree([string]$Path) {
   if (-not (Test-Path -LiteralPath $Path)) { return }
