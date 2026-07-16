@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.4.0-beta.2 — 2026-07-16
+
+- Added a double-click Windows installer, a first-run setup window, and Start
+  menu entries for starting Companion, changing setup, copying the pairing key,
+  and opening the exact local media folder.
+- New Windows installs trust the official MOTK public-site origin by default;
+  the setup window makes the selected local media boundary explicit.
+- Companion now forwards the configured SIGMA SDK ZIP, optional camera serial,
+  and digiCamControl command to the protected local camera agent.
+- Added a plain-language `README FIRST.txt`; users no longer need to type an
+  execution-policy command or invoke unsigned `.ps1` files directly.
+
 ## 0.4.0-beta.1 — 2026-07-16
 
 - Added the CC0 MOTK Media Job and Media Result 1.0 contracts shared with

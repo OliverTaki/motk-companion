@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { loadOrCreatePairingRecord, pairingTokenMatches, tokenFromUpgradeRequest } from './bridge/pairing-token.mjs';
 import { JournalJobStore } from './lib/job-store.mjs';
 
-export const VERSION = '0.4.0-beta.1';
+export const VERSION = '0.4.0-beta.2';
 const appRoot = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const args = process.argv.slice(2);
 const valueFor = (name, fallback) => {
@@ -64,6 +64,9 @@ if (config.capabilities?.bridge !== false) {
     '--production-root', productionRoot, '--token-store', tokenStore,
   ];
   if (config.allowOrigin) bridgeArgs.push('--allow-origin', String(config.allowOrigin));
+  if (config.sigmaSdkZip) bridgeArgs.push('--sigma-sdk-zip', localPath(config.sigmaSdkZip, ''));
+  if (config.sigmaSerial) bridgeArgs.push('--sigma-serial', String(config.sigmaSerial));
+  if (config.digicamCommand) bridgeArgs.push('--digicam', localPath(config.digicamCommand, ''));
   startCapability('bridge', process.execPath, bridgeArgs);
 }
 

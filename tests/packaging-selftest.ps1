@@ -46,9 +46,17 @@ try {
   & (Join-Path $first.releaseDirectory 'install.ps1') -InstallDir $install -DataDir $data -NoShortcut | Out-Null
   Assert-True (Test-Path -LiteralPath (Join-Path $install 'runtime\node.exe')) 'bundled Node runtime was not installed'
   Assert-True ((& (Join-Path $install 'runtime\node.exe') --version) -eq 'v24.18.0') 'installed Node version differs from the runtime lock'
+  foreach ($friendlyFile in @('INSTALL MOTK COMPANION.cmd', 'START MOTK COMPANION.cmd', 'SETUP MOTK COMPANION.cmd', 'README FIRST.txt', 'scripts\configure.ps1', 'scripts\copy-pairing-key.ps1', 'scripts\open-production-folder.ps1')) {
+    Assert-True (Test-Path -LiteralPath (Join-Path $install $friendlyFile) -PathType Leaf) "friendly Windows entry is missing: $friendlyFile"
+  }
 
   $configPath = Join-Path $data 'companion.json'
+  $friendlyMedia = Join-Path $root 'friendly-media'
+  $configured = (& (Join-Path $install 'scripts\configure.ps1') -DataDir $data -InstallDir $install -ProductionRoot $friendlyMedia -CameraBackend dummy -Headless | Out-String) | ConvertFrom-Json
+  Assert-True ([bool]$configured.ok) 'headless setup did not complete'
+  Assert-True ($configured.productionRoot -eq [System.IO.Path]::GetFullPath($friendlyMedia)) 'setup did not save the selected local media folder'
   $config = Get-Content -Raw -LiteralPath $configPath | ConvertFrom-Json
+  Assert-True ($config.allowOrigin -eq 'https://motk-public-site.pages.dev') 'setup did not trust the official MOTK public site origin'
   $config | Add-Member -NotePropertyName selfTestMarker -NotePropertyValue 'keep-config' -Force
   do { $statusPort = Get-Random -Minimum 21000 -Maximum 45000; $busPort = $statusPort + 1 } until ((Test-FreeTcpPort $statusPort) -and (Test-FreeTcpPort $busPort))
   $config.statusPort = $statusPort

@@ -65,7 +65,7 @@ $configPath = Join-Path $dataPath 'companion.json'
 if (-not (Test-Path -LiteralPath $configPath)) {
   $config = [ordered]@{
     host = '127.0.0.1'
-    allowOrigin = ''
+    allowOrigin = 'https://motk-public-site.pages.dev'
     busPort = 8793
     statusPort = 8794
     productionRoot = (Join-Path $dataPath 'production')
@@ -78,6 +78,9 @@ if (-not (Test-Path -LiteralPath $configPath)) {
     recipesDir = (Join-Path $installPath 'app\recipes')
     cliCommands = [ordered]@{}
     cameraBackend = 'dummy'
+    sigmaSdkZip = ''
+    sigmaSerial = ''
+    digicamCommand = 'C:\Program Files (x86)\digiCamControl\CameraControlCmd.exe'
     projectId = ''
     runtimeId = ''
     capabilities = [ordered]@{ bridge = $true; control = $true }
@@ -97,11 +100,18 @@ $state | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $dataPath
 if (-not $NoShortcut) {
   $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\MOTK'
   New-Item -ItemType Directory -Force -Path $startMenu | Out-Null
-  $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $startMenu 'MOTK Companion.lnk'))
-  $shortcut.TargetPath = 'powershell.exe'
-  $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $installPath 'scripts\motk-companion.ps1')`" -DataDir `"$dataPath`""
-  $shortcut.WorkingDirectory = $installPath
-  $shortcut.Save()
+  $shell = New-Object -ComObject WScript.Shell
+  function New-PowerShellShortcut([string]$Name, [string]$Script) {
+    $shortcut = $shell.CreateShortcut((Join-Path $startMenu "$Name.lnk"))
+    $shortcut.TargetPath = 'powershell.exe'
+    $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $installPath $Script)`" -DataDir `"$dataPath`""
+    $shortcut.WorkingDirectory = $installPath
+    $shortcut.Save()
+  }
+  New-PowerShellShortcut 'MOTK Companion' 'scripts\motk-companion.ps1'
+  New-PowerShellShortcut 'MOTK Companion - Setup' 'scripts\configure.ps1'
+  New-PowerShellShortcut 'MOTK Companion - Copy Pairing Key' 'scripts\copy-pairing-key.ps1'
+  New-PowerShellShortcut 'MOTK Companion - Open Local Media' 'scripts\open-production-folder.ps1'
 }
 
 $oldBackups = Get-ChildItem -LiteralPath (Join-Path $dataPath 'updates') -Directory -ErrorAction SilentlyContinue | Sort-Object LastWriteTimeUtc -Descending | Select-Object -Skip 2

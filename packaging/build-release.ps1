@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 [CmdletBinding()]
 param(
-  [string]$Version = '0.4.0-beta.1',
+  [string]$Version = '0.4.0-beta.2',
   [string]$OutputRoot = '',
   [string]$RuntimeCache = '',
   [long]$SourceDateEpoch = 0,
@@ -105,6 +105,12 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'windows\update.ps1') -Destinati
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'windows\uninstall.ps1') -Destination (Join-Path $stage 'uninstall.ps1')
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'windows\motk-companion.ps1') -Destination (Join-Path $stage 'scripts\motk-companion.ps1')
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'windows\diagnose.ps1') -Destination (Join-Path $stage 'scripts\diagnose.ps1')
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'windows\configure.ps1') -Destination (Join-Path $stage 'scripts\configure.ps1')
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'windows\copy-pairing-key.ps1') -Destination (Join-Path $stage 'scripts\copy-pairing-key.ps1')
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'windows\open-production-folder.ps1') -Destination (Join-Path $stage 'scripts\open-production-folder.ps1')
+foreach ($launcher in @('INSTALL MOTK COMPANION.cmd', 'START MOTK COMPANION.cmd', 'SETUP MOTK COMPANION.cmd', 'README FIRST.txt')) {
+  Copy-Item -LiteralPath (Join-Path $PSScriptRoot "windows\$launcher") -Destination (Join-Path $stage $launcher)
+}
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'THIRD_PARTY_NOTICES.md') -Destination (Join-Path $stage 'THIRD_PARTY_NOTICES.md')
 $releaseDocuments = @('LICENSE', 'LICENSES.md', 'SECURITY.md', 'PRIVACY.md', 'CONTRIBUTING.md', 'TRADEMARK.md', 'CHANGELOG.md')
 foreach ($document in $releaseDocuments) { Copy-Item -LiteralPath (Join-Path $componentRoot $document) -Destination (Join-Path $stage $document) }

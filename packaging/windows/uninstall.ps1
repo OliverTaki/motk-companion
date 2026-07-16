@@ -23,8 +23,11 @@ function Remove-SafeTree([string]$Path) {
 }
 
 if (-not $NoShortcut) {
-  $shortcut = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\MOTK\MOTK Companion.lnk'
-  if (Test-Path -LiteralPath $shortcut) { Remove-Item -LiteralPath $shortcut -Force }
+  $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\MOTK'
+  foreach ($name in @('MOTK Companion.lnk', 'MOTK Companion - Setup.lnk', 'MOTK Companion - Copy Pairing Key.lnk', 'MOTK Companion - Open Local Media.lnk')) {
+    $shortcut = Join-Path $startMenu $name
+    if (Test-Path -LiteralPath $shortcut) { Remove-Item -LiteralPath $shortcut -Force }
+  }
 }
 Remove-SafeTree $installPath
 if ($RemoveData) { Remove-SafeTree $dataPath }

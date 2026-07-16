@@ -1,6 +1,6 @@
 {
   "host": "127.0.0.1",
-  "allowOrigin": "",
+  "allowOrigin": "https://motk-public-site.pages.dev",
   "busPort": 8793,
   "statusPort": 8794,
   "productionRoot": "./production-test",
@@ -13,6 +13,9 @@
   "recipesDir": "./recipes",
   "cliCommands": {},
   "cameraBackend": "dummy",
+  "sigmaSdkZip": "",
+  "sigmaSerial": "",
+  "digicamCommand": "C:\\Program Files (x86)\\digiCamControl\\CameraControlCmd.exe",
   "projectId": "",
   "runtimeId": "",
   "capabilities": {

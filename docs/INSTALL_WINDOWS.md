@@ -2,16 +2,28 @@
 
 The public beta is a user-scope package and does not require administrator
 rights. Extract the ZIP completely, inspect `RELEASE.json`, verify the published
-ZIP SHA-256, then run:
+ZIP SHA-256, then double-click:
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+```text
+INSTALL MOTK COMPANION.cmd
 ```
+
+The installer opens **MOTK Companion Setup**. Choose the local media folder and
+camera method, then press **Save & Start**. Open **MOTK Companion - Copy Pairing
+Key** from the Windows Start menu and paste the key into **MOTK Shoot → Settings
+→ Camera → Tether**. The setup also opens the official MOTK Shoot page.
 
 The application is installed under `%LOCALAPPDATA%\Programs\MOTK Companion`.
 Mutable configuration, pairing state, job journals, logs, caches, and production
 test data live separately under `%LOCALAPPDATA%\MOTK\Companion`. The first run
 shows the pairing key once. Store it like a password.
+
+Use the Start menu instead of opening scripts manually:
+
+- **MOTK Companion** — start the local service and keep its window open.
+- **MOTK Companion - Setup** — choose the local media folder and camera method.
+- **MOTK Companion - Copy Pairing Key** — copy the private key for MOTK Shoot.
+- **MOTK Companion - Open Local Media** — open the exact selected media folder.
 
 Run `scripts\diagnose.ps1` from the installed directory for a secret-free health
 report. Configure a real production root, exact hosted origin, project identity,
