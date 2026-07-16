@@ -13,6 +13,11 @@ camera method, then press **Save & Start**. Open **MOTK Companion - Copy Pairing
 Key** from the Windows Start menu and paste the key into **MOTK Shoot → Settings
 → Camera → Tether**. The setup also opens the official MOTK Shoot page.
 
+It is safe to run the installer or updater while Companion is open. The package
+stops only its own installed processes before the directory swap. A normal
+update restarts Companion automatically; the double-click installer continues
+into Setup and starts it after **Save & Start**.
+
 The application is installed under `%LOCALAPPDATA%\Programs\MOTK Companion`.
 Mutable configuration, pairing state, job journals, logs, caches, and production
 test data live separately under `%LOCALAPPDATA%\MOTK\Companion`. The first run

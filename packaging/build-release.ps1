@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 [CmdletBinding()]
 param(
-  [string]$Version = '0.4.0-beta.2',
+  [string]$Version = '0.4.0-beta.3',
   [string]$OutputRoot = '',
   [string]$RuntimeCache = '',
   [long]$SourceDateEpoch = 0,
@@ -108,6 +108,7 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'windows\diagnose.ps1') -Destina
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'windows\configure.ps1') -Destination (Join-Path $stage 'scripts\configure.ps1')
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'windows\copy-pairing-key.ps1') -Destination (Join-Path $stage 'scripts\copy-pairing-key.ps1')
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'windows\open-production-folder.ps1') -Destination (Join-Path $stage 'scripts\open-production-folder.ps1')
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'windows\stop-companion.ps1') -Destination (Join-Path $stage 'scripts\stop-companion.ps1')
 foreach ($launcher in @('INSTALL MOTK COMPANION.cmd', 'START MOTK COMPANION.cmd', 'SETUP MOTK COMPANION.cmd', 'README FIRST.txt')) {
   Copy-Item -LiteralPath (Join-Path $PSScriptRoot "windows\$launcher") -Destination (Join-Path $stage $launcher)
 }

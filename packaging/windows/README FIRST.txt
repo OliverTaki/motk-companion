@@ -9,6 +9,9 @@ New installation
 4. Open Start > MOTK > "MOTK Companion - Copy Pairing Key".
 5. In MOTK Shoot, open Settings > Camera > Tether, paste the key, and press Connect.
 
+You do not have to close a running Companion before an install or update. The
+installer stops only MOTK Companion, replaces it safely, and Setup starts it again.
+
 Already installed
 -----------------
 Use the Windows Start menu:

@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 0.4.0-beta.3 — 2026-07-16
+
+- Windows install and update now detect and stop only the installed Companion
+  processes before replacing application files; updates restart Companion when
+  it was already running.
+- Replaced the direct move of a live installation with a copied rollback plus
+  same-parent directory swap. A failed swap restores the untouched old install
+  instead of leaving a partially moved application.
+- Incomplete installs are preserved separately as partial-recovery evidence and
+  are never advertised as a valid rollback target.
+- Uninstall now stops a running Companion before removing application files.
+- Added an automated running-update regression covering stop, replacement,
+  restart, settings/key/job preservation, and uninstall.
+
 ## 0.4.0-beta.2 — 2026-07-16
 
 - Added a double-click Windows installer, a first-run setup window, and Start

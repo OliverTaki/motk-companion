@@ -46,7 +46,7 @@ try {
   & (Join-Path $first.releaseDirectory 'install.ps1') -InstallDir $install -DataDir $data -NoShortcut | Out-Null
   Assert-True (Test-Path -LiteralPath (Join-Path $install 'runtime\node.exe')) 'bundled Node runtime was not installed'
   Assert-True ((& (Join-Path $install 'runtime\node.exe') --version) -eq 'v24.18.0') 'installed Node version differs from the runtime lock'
-  foreach ($friendlyFile in @('INSTALL MOTK COMPANION.cmd', 'START MOTK COMPANION.cmd', 'SETUP MOTK COMPANION.cmd', 'README FIRST.txt', 'scripts\configure.ps1', 'scripts\copy-pairing-key.ps1', 'scripts\open-production-folder.ps1')) {
+  foreach ($friendlyFile in @('INSTALL MOTK COMPANION.cmd', 'START MOTK COMPANION.cmd', 'SETUP MOTK COMPANION.cmd', 'README FIRST.txt', 'scripts\configure.ps1', 'scripts\copy-pairing-key.ps1', 'scripts\open-production-folder.ps1', 'scripts\stop-companion.ps1')) {
     Assert-True (Test-Path -LiteralPath (Join-Path $install $friendlyFile) -PathType Leaf) "friendly Windows entry is missing: $friendlyFile"
   }
 
@@ -84,9 +84,11 @@ try {
     $diagnostic = (& (Join-Path $install 'scripts\diagnose.ps1') -DataDir $data | Out-String) | ConvertFrom-Json
     Assert-True ([bool]$diagnostic.ok) 'installed diagnostic reported a required failure'
     Assert-True ([bool](($diagnostic.checks | Where-Object name -eq 'status').ok)) 'installed diagnostic did not observe the running status endpoint'
-  } finally {
+  } catch {
     if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+    throw
   }
+  Assert-True (-not $process.HasExited) 'Companion stopped before the running-update test'
   Assert-True (Test-Path -LiteralPath (Join-Path $data 'config\pairing-token.json')) 'first installed launch did not create a pairing record'
   $configHash = (Get-FileHash -LiteralPath $configPath -Algorithm SHA256).Hash
   $tokenHash = (Get-FileHash -LiteralPath (Join-Path $data 'config\pairing-token.json') -Algorithm SHA256).Hash
@@ -104,6 +106,13 @@ try {
   [System.IO.File]::WriteAllBytes($tamperPath, $originalBytes)
 
   & (Join-Path $third.releaseDirectory 'update.ps1') -InstallDir $install -DataDir $data -NoShortcut | Out-Null
+  $process.Refresh()
+  Assert-True $process.HasExited 'valid update did not stop the running installed Companion'
+  $restartedStatus = $null
+  for ($attempt = 0; $attempt -lt 50 -and -not $restartedStatus; $attempt++) {
+    try { $restartedStatus = Invoke-RestMethod -UseBasicParsing -TimeoutSec 1 "http://127.0.0.1:$statusPort/status" } catch { Start-Sleep -Milliseconds 100 }
+  }
+  Assert-True ([bool]$restartedStatus.ok) 'valid update did not restart Companion after replacing the running install'
   $stateAfter = Get-Content -Raw -LiteralPath (Join-Path $data 'install-state.json') | ConvertFrom-Json
   Assert-True ($stateAfter.version -eq '0.3.0-test.2') 'valid update did not replace the installed version'
   Assert-True ((Get-FileHash -LiteralPath $configPath -Algorithm SHA256).Hash -eq $configHash) 'update changed the user configuration'
@@ -121,7 +130,11 @@ try {
   Assert-True (-not (Test-Path -LiteralPath $data)) 'explicit data-removal uninstall left the data directory behind'
 
   Write-Output 'PASS'
-  Write-Output "Built deterministic release ZIP $($first.archiveSha256), launched the installed Companion and diagnostics with bundled Node, rejected a tampered update, preserved config/token/jobs across update, retained data on default uninstall, and removed it only on explicit request."
+  Write-Output "Built deterministic release ZIP $($first.archiveSha256), launched the installed Companion and diagnostics with bundled Node, updated it while running with an automatic stop/restart, rejected a tampered update, preserved config/token/jobs across update, retained data on default uninstall, and removed it only on explicit request."
 } finally {
+  if ($install) {
+    $stopHelper = Join-Path $install 'scripts\stop-companion.ps1'
+    if (Test-Path -LiteralPath $stopHelper -PathType Leaf) { try { & $stopHelper -InstallDir $install | Out-Null } catch {} }
+  }
   Remove-SelfTestTree $root
 }

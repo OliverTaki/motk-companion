@@ -3,7 +3,8 @@
 param(
   [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'Programs\MOTK Companion'),
   [string]$DataDir = (Join-Path $env:LOCALAPPDATA 'MOTK\Companion'),
-  [switch]$NoShortcut
+  [switch]$NoShortcut,
+  [switch]$NoRestart
 )
 
 $ErrorActionPreference = 'Stop'
@@ -46,20 +47,35 @@ New-Item -ItemType Directory -Force -Path $stage | Out-Null
 Get-ChildItem -LiteralPath $packageRoot -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force }
 
 $backup = $null
+$backupArchive = $null
+$previous = "$installPath.previous-$PID"
+$stopScript = Join-Path $packageRoot 'scripts\stop-companion.ps1'
+$stopResult = [ordered]@{ wasRunning = $false }
+if (Test-Path -LiteralPath $installPath) {
+  if (-not (Test-Path -LiteralPath $stopScript -PathType Leaf)) { throw 'The package is missing its safe Companion stop helper.' }
+  $stopResult = (& $stopScript -InstallDir $installPath | Out-String) | ConvertFrom-Json
+}
+Remove-SafeTree $previous
 try {
   if (Test-Path -LiteralPath $installPath) {
     $backupRoot = Join-Path $dataPath 'updates'
     New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null
     $stamp = [DateTimeOffset]::UtcNow.ToString('yyyyMMddTHHmmssfffZ')
-    $backup = Join-Path $backupRoot "install-$stamp"
-    Move-Item -LiteralPath $installPath -Destination $backup
+    $completeExisting = (Test-Path -LiteralPath (Join-Path $installPath 'RELEASE.json') -PathType Leaf) -and
+      (Test-Path -LiteralPath (Join-Path $installPath 'runtime\node.exe') -PathType Leaf) -and
+      (Test-Path -LiteralPath (Join-Path $installPath 'app\companion.mjs') -PathType Leaf)
+    $backupArchive = Join-Path $backupRoot "$(if ($completeExisting) { 'install' } else { 'partial-recovery' })-$stamp"
+    Copy-Item -LiteralPath $installPath -Destination $backupArchive -Recurse -Force
+    if ($completeExisting) { $backup = $backupArchive }
+    Rename-Item -LiteralPath $installPath -NewName (Split-Path $previous -Leaf)
   }
-  Move-Item -LiteralPath $stage -Destination $installPath
+  Rename-Item -LiteralPath $stage -NewName (Split-Path $installPath -Leaf)
 } catch {
   Remove-SafeTree $stage
-  if ($backup -and (Test-Path -LiteralPath $backup) -and -not (Test-Path -LiteralPath $installPath)) { Move-Item -LiteralPath $backup -Destination $installPath }
+  if ((Test-Path -LiteralPath $previous) -and -not (Test-Path -LiteralPath $installPath)) { Rename-Item -LiteralPath $previous -NewName (Split-Path $installPath -Leaf) }
   throw
 }
+Remove-SafeTree $previous
 
 $configPath = Join-Path $dataPath 'companion.json'
 if (-not (Test-Path -LiteralPath $configPath)) {
@@ -114,7 +130,14 @@ if (-not $NoShortcut) {
   New-PowerShellShortcut 'MOTK Companion - Open Local Media' 'scripts\open-production-folder.ps1'
 }
 
-$oldBackups = Get-ChildItem -LiteralPath (Join-Path $dataPath 'updates') -Directory -ErrorAction SilentlyContinue | Sort-Object LastWriteTimeUtc -Descending | Select-Object -Skip 2
+$oldBackups = Get-ChildItem -LiteralPath (Join-Path $dataPath 'updates') -Directory -Filter 'install-*' -ErrorAction SilentlyContinue | Sort-Object LastWriteTimeUtc -Descending | Select-Object -Skip 2
 foreach ($old in $oldBackups) { Remove-SafeTree $old.FullName }
+$oldPartialBackups = Get-ChildItem -LiteralPath (Join-Path $dataPath 'updates') -Directory -Filter 'partial-recovery-*' -ErrorAction SilentlyContinue | Sort-Object LastWriteTimeUtc -Descending | Select-Object -Skip 1
+foreach ($old in $oldPartialBackups) { Remove-SafeTree $old.FullName }
 
-[ordered]@{ ok = $true; version = [string]$release.version; installDir = $installPath; dataDir = $dataPath; previousInstall = $backup } | ConvertTo-Json -Depth 4
+if ($stopResult.wasRunning -and -not $NoRestart) {
+  $launcher = Join-Path $installPath 'scripts\motk-companion.ps1'
+  Start-Process -FilePath 'powershell.exe' -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$launcher`" -DataDir `"$dataPath`"" -WorkingDirectory $installPath -WindowStyle Hidden
+}
+
+[ordered]@{ ok = $true; version = [string]$release.version; installDir = $installPath; dataDir = $dataPath; previousInstall = $backup; restarted = [bool]($stopResult.wasRunning -and -not $NoRestart) } | ConvertTo-Json -Depth 4
