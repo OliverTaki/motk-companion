@@ -291,7 +291,15 @@ if (BACKEND === 'auto') {
   }
   }
 } else if (BACKEND === 'sigma') {
-  sigmaProbeCache = await runSigma('probe');
+  // The camera is optional at startup: Companion must come up (and stay
+  // connectable for pairing/UI) with the body off or unplugged. Probe results
+  // are cached lazily; per-request camera calls report their own errors.
+  try {
+    sigmaProbeCache = await runSigma('probe');
+  } catch (error) {
+    console.warn('[agent] SIGMA camera not detected at startup (' + error.message + '); continuing without it. Connect/power the camera and it will be probed on demand.');
+    sigmaProbeCache = null;
+  }
   allowedConfigPaths = new Set(sigmaConfigs.keys());
 }
 console.log(`[agent] backend=${BACKEND}  dir=${DIR}  productionRoot=${PRODUCTION_ROOT}`);
