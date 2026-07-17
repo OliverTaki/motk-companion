@@ -3,7 +3,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('probe', 'preview', 'capture')]
+    [ValidateSet('probe', 'preview', 'capture', 'configure')]
     [string]$Command,
 
     [Parameter(Mandatory = $true)]
@@ -16,7 +16,21 @@ param(
     [ValidateSet(1, 2, 3)]
     [int]$Destination = 2,
     [ValidateSet(0, 2, 4, 8, 16, 18)]
-    [int]$ImageQuality = 0
+    [int]$ImageQuality = 0,
+    [ValidateSet(0, 1, 2, 3, 4)]
+    [int]$ExposureMode = 0,
+    [ValidateRange(-1, 255)]
+    [int]$ShutterCode = -1,
+    [ValidateRange(-1, 255)]
+    [int]$ApertureCode = -1,
+    [ValidateRange(-1, 1)]
+    [int]$ISOAuto = -1,
+    [ValidateRange(-1, 255)]
+    [int]$ISOCode = -1,
+    [ValidateRange(-1, 255)]
+    [int]$WhiteBalanceCode = -1,
+    [ValidateRange(-1, 255)]
+    [int]$ColorModeCode = -1
 )
 
 $ErrorActionPreference = 'Stop'
@@ -50,7 +64,7 @@ function Get-SdkDirectory([string]$ZipPath) {
     $required = @(
         'SIGMA_cmd.dll', 'SIGMA_ConfigAPI.dll', 'SIGMA_CloseApplication.dll',
         'SIGMA_GetCamViewFrame.dll', 'SIGMA_SnapCommand.dll',
-        'SIGMA_GetCamDataGrp1.dll',
+        'SIGMA_GetCamDataGrp1.dll', 'SIGMA_SetCamDataGrp1.dll',
         'SIGMA_GetCamDataGrp2.dll', 'SIGMA_SetCamDataGrp2.dll',
         'SIGMA_GetCamDataGrp3.dll', 'SIGMA_SetCamDataGrp3.dll',
         'SIGMA_GetCamOpPermission.dll', 'SIGMA_SetCamOpPermission.dll',
@@ -178,6 +192,8 @@ public static class MotkSigmaSdk {
     static extern int sgm_SnapCommand(ref SdkInfo info, ref SnapState state);
     [DllImport("SIGMA_GetCamDataGrp1.dll", CallingConvention = CallingConvention.Winapi)]
     static extern int sgm_GetCamDataGrp1(ref SdkInfo info, out DataGroup1 group);
+    [DllImport("SIGMA_SetCamDataGrp1.dll", CallingConvention = CallingConvention.Winapi)]
+    static extern int sgm_SetCamDataGrp1(ref SdkInfo info, ref DataGroup1 group);
     [DllImport("SIGMA_GetCamDataGrp2.dll", CallingConvention = CallingConvention.Winapi)]
     static extern int sgm_GetCamDataGrp2(ref SdkInfo info, out DataGroup2 group);
     [DllImport("SIGMA_SetCamDataGrp2.dll", CallingConvention = CallingConvention.Winapi)]
@@ -262,14 +278,75 @@ public static class MotkSigmaSdk {
         Check(sgm_GetCamDataGrp3(ref info, out group), "sgm_GetCamDataGrp3 verification");
         if (group.DestinationToSave != destination) throw new InvalidOperationException("Camera did not accept capture destination 0x" + destination.ToString("X2") + " (reported 0x" + ((byte)group.DestinationToSave).ToString("X2") + ").");
     }
-    static void ConfigureStillCapture(ref SdkInfo info, byte imageQuality) {
+    static void ConfigureStillCapture(ref SdkInfo info, byte imageQuality, byte exposureMode, int shutterCode, int apertureCode, int isoAuto, int isoCode, int whiteBalanceCode, int colorModeCode) {
         DataGroup2 group;
         Check(sgm_GetCamDataGrp2(ref info, out group), "sgm_GetCamDataGrp2");
         if ((group.FieldPresent1 & 0x01) != 0) group.DriveMode = 0x01;
         if ((group.FieldPresent1 & 0x02) != 0) group.SpecialMode = 0x02;
+        if (exposureMode != 0) {
+            if ((group.FieldPresent1 & 0x04) == 0) throw new NotSupportedException("Camera does not expose exposure-mode control.");
+            group.ExposureMode = (sbyte)exposureMode;
+        }
         if ((group.FieldPresent2 & 0x40) != 0) group.Resolution = 0x01;
         if (imageQuality != 0 && (group.FieldPresent2 & 0x80) != 0) group.ImageQuality = (sbyte)imageQuality;
+        if (whiteBalanceCode >= 0) {
+            if ((group.FieldPresent2 & 0x20) == 0) throw new NotSupportedException("Camera does not expose white-balance control.");
+            group.WhiteBalance = unchecked((sbyte)whiteBalanceCode);
+        }
         Check(sgm_SetCamDataGrp2(ref info, ref group), "sgm_SetCamDataGrp2");
+        System.Threading.Thread.Sleep(250);
+        DataGroup2 verifiedGroup;
+        Check(sgm_GetCamDataGrp2(ref info, out verifiedGroup), "sgm_GetCamDataGrp2 verification");
+        if (exposureMode != 0 && (byte)verifiedGroup.ExposureMode != exposureMode)
+            throw new InvalidOperationException("Camera did not accept exposure mode " + exposureMode + " (reported " + (byte)verifiedGroup.ExposureMode + "). Set the physical exposure-mode control on the camera body first.");
+        if (imageQuality != 0 && (byte)verifiedGroup.ImageQuality != imageQuality)
+            throw new InvalidOperationException("Camera did not accept image quality 0x" + imageQuality.ToString("X2") + ".");
+        if (whiteBalanceCode >= 0 && (byte)verifiedGroup.WhiteBalance != (byte)whiteBalanceCode)
+            throw new InvalidOperationException("Camera did not accept white-balance code " + whiteBalanceCode + ".");
+
+        if (shutterCode >= 0 || apertureCode >= 0 || isoAuto >= 0 || isoCode >= 0) {
+            DataGroup1 exposure;
+            Check(sgm_GetCamDataGrp1(ref info, out exposure), "sgm_GetCamDataGrp1 exposure");
+            if (shutterCode >= 0) {
+                if ((exposure.FieldPresent1 & 0x01) == 0) throw new NotSupportedException("Camera does not expose shutter-speed control.");
+                exposure.ShutterSpeed = unchecked((sbyte)shutterCode);
+            }
+            if (apertureCode >= 0) {
+                if ((exposure.FieldPresent1 & 0x02) == 0) throw new NotSupportedException("Camera does not expose aperture control. Put the lens aperture ring in Auto/A.");
+                exposure.Aperture = unchecked((sbyte)apertureCode);
+            }
+            if (isoAuto >= 0) {
+                if ((exposure.FieldPresent1 & 0x08) == 0) throw new NotSupportedException("Camera does not expose ISO Auto control.");
+                exposure.ISOAuto = unchecked((sbyte)isoAuto);
+            }
+            if (isoCode >= 0) {
+                if ((exposure.FieldPresent1 & 0x10) == 0) throw new NotSupportedException("Camera does not expose ISO speed control.");
+                exposure.ISOSpeed = unchecked((sbyte)isoCode);
+            }
+            Check(sgm_SetCamDataGrp1(ref info, ref exposure), "sgm_SetCamDataGrp1 exposure");
+            System.Threading.Thread.Sleep(250);
+            DataGroup1 verifiedExposure;
+            Check(sgm_GetCamDataGrp1(ref info, out verifiedExposure), "sgm_GetCamDataGrp1 exposure verification");
+            if (shutterCode >= 0 && (byte)verifiedExposure.ShutterSpeed != (byte)shutterCode)
+                throw new InvalidOperationException("Camera did not accept shutter code " + shutterCode + " (reported " + (byte)verifiedExposure.ShutterSpeed + "). Check the physical exposure mode.");
+            if (apertureCode >= 0 && (byte)verifiedExposure.Aperture != (byte)apertureCode)
+                throw new InvalidOperationException("Camera did not accept aperture code " + apertureCode + " (reported " + (byte)verifiedExposure.Aperture + "). Put the lens aperture ring in Auto/A and use a compatible exposure mode.");
+            if (isoAuto >= 0 && (byte)verifiedExposure.ISOAuto != (byte)isoAuto)
+                throw new InvalidOperationException("Camera did not accept ISO Auto " + isoAuto + ".");
+            if (isoCode >= 0 && isoAuto == 0 && (byte)verifiedExposure.ISOSpeed != (byte)isoCode)
+                throw new InvalidOperationException("Camera did not accept ISO code " + isoCode + " (reported " + (byte)verifiedExposure.ISOSpeed + ").");
+        }
+        if (colorModeCode >= 0) {
+            DataGroup3 color;
+            Check(sgm_GetCamDataGrp3(ref info, out color), "sgm_GetCamDataGrp3 color mode");
+            if ((color.FieldPresent1 & 0x10) == 0) throw new NotSupportedException("Camera does not expose color-mode control.");
+            color.ColorMode = unchecked((sbyte)colorModeCode);
+            Check(sgm_SetCamDataGrp3(ref info, ref color), "sgm_SetCamDataGrp3 color mode");
+            System.Threading.Thread.Sleep(250);
+            Check(sgm_GetCamDataGrp3(ref info, out color), "sgm_GetCamDataGrp3 color-mode verification");
+            if ((byte)color.ColorMode != (byte)colorModeCode) throw new InvalidOperationException("Camera did not accept color-mode code " + colorModeCode + ".");
+        }
+        System.Threading.Thread.Sleep(100);
     }
     static byte GetOperationPermission(ref SdkInfo info) {
         IfdArray permission;
@@ -368,6 +445,18 @@ public static class MotkSigmaSdk {
         try { Check(sgm_ConfigAPI(ref info, out config), "sgm_ConfigAPI"); }
         catch { try { sgm_CamClose(ref info); } catch {} throw; }
         finally { if (config.Directory != IntPtr.Zero) try { sgm_FreeArrayMemory(ref config); } catch {} }
+        // The SDK returns template/default data immediately after CamOpen. Poll camera
+        // status before reading or writing groups so physical M/P/S/A and lens values
+        // have reached the SDK cache. The official sample does the same continuously.
+        IntPtr status = Marshal.AllocHGlobal(64 * 1024);
+        try {
+            for (int i = 0; i < 5; i++) {
+                int received;
+                Check(sgm_GetCamStatus2(ref info, 0, 0, 0, status, 64 * 1024, out received), "sgm_GetCamStatus2 startup");
+                System.Threading.Thread.Sleep(200);
+            }
+        } catch { try { sgm_CamClose(ref info); } catch {} throw; }
+        finally { Marshal.FreeHGlobal(status); }
         return info;
     }
     static void Close(ref SdkInfo info) {
@@ -402,7 +491,10 @@ public static class MotkSigmaSdk {
                 ((byte)group2.ExposureMode).ToString(), ((byte)group2.ImageQuality).ToString(),
                 ((byte)group3.DestinationToSave).ToString(), GetOperationPermission(ref info).ToString(),
                 ((byte)group1.MediaStatus).ToString(), group1.MediaFreeSpace.ToString(),
-                ((byte)group1.FrameBufferState).ToString(), ((byte)group1.BatteryState).ToString()
+                ((byte)group1.FrameBufferState).ToString(), ((byte)group1.BatteryState).ToString(),
+                ((byte)group1.ShutterSpeed).ToString(), ((byte)group1.Aperture).ToString(),
+                ((byte)group1.ISOAuto).ToString(), ((byte)group1.ISOSpeed).ToString(),
+                ((byte)group2.WhiteBalance).ToString(), ((byte)group3.ColorMode).ToString()
             };
         } finally {
             if (config.Directory != IntPtr.Zero) try { sgm_FreeArrayMemory(ref config); } catch {}
@@ -410,9 +502,13 @@ public static class MotkSigmaSdk {
         }
     }
 
-    public static void Preview(string sdkDirectory, string serial, string output) {
+    public static void Preview(string sdkDirectory, string serial, string output, byte destination, byte imageQuality, byte exposureMode, int shutterCode, int apertureCode, int isoAuto, int isoCode, int whiteBalanceCode, int colorModeCode) {
         var info = Open(sdkDirectory, serial);
         try {
+            SelectPcOperation(ref info);
+            SelectStillImageMode(ref info);
+            ConfigureStillCapture(ref info, imageQuality, exposureMode, shutterCode, apertureCode, isoAuto, isoCode, whiteBalanceCode, colorModeCode);
+            SelectCaptureDestination(ref info, destination);
             IntPtr data = IntPtr.Zero; uint size = 0; int result = -1;
             var deadline = DateTime.UtcNow.AddSeconds(10);
             do {
@@ -426,53 +522,66 @@ public static class MotkSigmaSdk {
         } finally { Close(ref info); }
     }
 
-    public static string[] Capture(string sdkDirectory, string serial, string outputDirectory, string baseName, byte destination, byte imageQuality) {
+    public static string[] Capture(string sdkDirectory, string serial, string outputDirectory, string baseName, byte destination, byte imageQuality, byte exposureMode, int shutterCode, int apertureCode, int isoAuto, int isoCode, int whiteBalanceCode, int colorModeCode) {
         Directory.CreateDirectory(outputDirectory);
         var info = Open(sdkDirectory, serial);
         try {
             SelectPcOperation(ref info);
             SelectStillImageMode(ref info);
-            ConfigureStillCapture(ref info, imageQuality);
+            ConfigureStillCapture(ref info, imageQuality, exposureMode, shutterCode, apertureCode, isoAuto, isoCode, whiteBalanceCode, colorModeCode);
             SelectCaptureDestination(ref info, destination);
             ClearPendingCaptures(ref info);
+            System.Threading.Thread.Sleep(750);
             byte imageId = CaptureDatabase(ref info).DatabaseTail;
-            var snap = new SnapState { CaptureMode = 0x02, CaptureAmount = 0x01 };
-            Check(sgm_SnapCommand(ref info, ref snap), "sgm_SnapCommand");
-            WaitForCapture(ref info, imageId);
-            var pictures = ReadPictures(ref info, true);
+            bool captureIssued = false, captureCleared = false;
+            try {
+                var snap = new SnapState { CaptureMode = 0x02, CaptureAmount = 0x01 };
+                Check(sgm_SnapCommand(ref info, ref snap), "sgm_SnapCommand");
+                captureIssued = true;
+                WaitForCapture(ref info, imageId);
+                var pictures = ReadPictures(ref info, true);
 
-            var saved = new System.Collections.Generic.List<string>();
-            for (int i = 0; i < pictures.Length; i++) {
-                var p = pictures[i];
-                string original = Text(p.FileName);
-                string ext = Path.GetExtension(original);
-                if (String.IsNullOrWhiteSpace(ext)) ext = "." + Text(p.FileExt).TrimStart('.');
-                if (String.IsNullOrWhiteSpace(ext) || ext.Length > 8) ext = ".bin";
-                string suffix = pictures.Length > 1 ? "_" + (i + 1).ToString("00") : "";
-                string target = Path.Combine(outputDirectory, baseName + suffix + ext.ToLowerInvariant());
-                if (File.Exists(target)) throw new IOException("Refusing to overwrite " + target);
-                using (var stream = new MemoryStream(checked((int)p.FileSize))) {
-                    uint offset = 0;
-                    while (offset < p.FileSize) {
-                        // Stay within the SDK's documented large receive page (0xF000).
-                        uint request = Math.Min(0xF000u, p.FileSize - offset);
-                        IntPtr chunk; uint received;
-                        Check(sgm_GetBigPartialPictFile(ref info, p.FileAddress, offset, request, out chunk, out received), "sgm_GetBigPartialPictFile");
-                        if (chunk == IntPtr.Zero || received == 0 || received > request + 64) throw new InvalidDataException("Camera returned an invalid image chunk (requested " + request + ", received " + received + ").");
-                        var bytes = new byte[received]; Marshal.Copy(chunk, bytes, 0, checked((int)received));
-                        int wrapper = checked((int)(received > request ? received - request : 0));
-                        int payload = checked((int)received) - wrapper;
-                        // The fp can return two 31-byte SDK response envelopes before the payload.
-                        if (wrapper != 0 && wrapper != 10 && wrapper != 62) throw new InvalidDataException("Camera returned an unknown image wrapper of " + wrapper + " bytes.");
-                        stream.Write(bytes, wrapper, payload); offset += (uint)payload;
+                var saved = new System.Collections.Generic.List<string>();
+                for (int i = 0; i < pictures.Length; i++) {
+                    var p = pictures[i];
+                    string original = Text(p.FileName);
+                    string ext = Path.GetExtension(original);
+                    if (String.IsNullOrWhiteSpace(ext)) ext = "." + Text(p.FileExt).TrimStart('.');
+                    if (String.IsNullOrWhiteSpace(ext) || ext.Length > 8) ext = ".bin";
+                    string suffix = pictures.Length > 1 ? "_" + (i + 1).ToString("00") : "";
+                    string target = Path.Combine(outputDirectory, baseName + suffix + ext.ToLowerInvariant());
+                    if (File.Exists(target)) throw new IOException("Refusing to overwrite " + target);
+                    using (var stream = new MemoryStream(checked((int)p.FileSize))) {
+                        uint offset = 0;
+                        while (offset < p.FileSize) {
+                            // Stay within the SDK's documented large receive page (0xF000).
+                            uint request = Math.Min(0xF000u, p.FileSize - offset);
+                            IntPtr chunk; uint received;
+                            Check(sgm_GetBigPartialPictFile(ref info, p.FileAddress, offset, request, out chunk, out received), "sgm_GetBigPartialPictFile");
+                            if (chunk == IntPtr.Zero || received == 0 || received > request + 4096) throw new InvalidDataException("Camera returned an invalid image chunk (requested " + request + ", received " + received + ").");
+                            var bytes = new byte[received]; Marshal.Copy(chunk, bytes, 0, checked((int)received));
+                            int wrapper = checked((int)(received > request ? received - request : 0));
+                            int payload = checked((int)received) - wrapper;
+                            // Some fp firmware/USB sessions return a private SDK response envelope
+                            // before each documented payload. Its observed size is not stable (10,
+                            // 49, or 62 bytes), so bound it here and validate the reconstructed file
+                            // signature below instead of assuming one firmware-specific envelope.
+                            if (wrapper < 0 || wrapper > 4096) throw new InvalidDataException("Camera returned an invalid image wrapper of " + wrapper + " bytes.");
+                            stream.Write(bytes, wrapper, payload); offset += (uint)payload;
+                        }
+                        if (stream.Length != p.FileSize) throw new InvalidDataException("Downloaded image size does not match camera metadata.");
+                        var fileBytes = stream.ToArray();
+                        ValidateCapturedFile(target, fileBytes);
+                        AtomicWrite(target, fileBytes);
                     }
-                    if (stream.Length != p.FileSize) throw new InvalidDataException("Downloaded image size does not match camera metadata.");
-                    AtomicWrite(target, stream.ToArray());
+                    saved.Add(target);
                 }
-                saved.Add(target);
+                Check(sgm_ClearImageDBSingle(ref info, imageId), "sgm_ClearImageDBSingle");
+                captureCleared = true;
+                return saved.ToArray();
+            } finally {
+                if (captureIssued && !captureCleared) try { sgm_ClearImageDBSingle(ref info, imageId); } catch {}
             }
-            Check(sgm_ClearImageDBSingle(ref info, imageId), "sgm_ClearImageDBSingle");
-            return saved.ToArray();
         } finally { Close(ref info); }
     }
 
@@ -483,6 +592,36 @@ public static class MotkSigmaSdk {
         if (File.Exists(full)) throw new IOException("Refusing to overwrite " + full);
         string temp = full + ".tmp-" + System.Diagnostics.Process.GetCurrentProcess().Id + "-" + Guid.NewGuid().ToString("N");
         try { File.WriteAllBytes(temp, bytes); File.Move(temp, full); } finally { if (File.Exists(temp)) File.Delete(temp); }
+    }
+
+    public static string[] Configure(string sdkDirectory, string serial, byte destination, byte imageQuality, byte exposureMode, int shutterCode, int apertureCode, int isoAuto, int isoCode, int whiteBalanceCode, int colorModeCode) {
+        var info = Open(sdkDirectory, serial);
+        try {
+            SelectPcOperation(ref info);
+            SelectStillImageMode(ref info);
+            ConfigureStillCapture(ref info, imageQuality, exposureMode, shutterCode, apertureCode, isoAuto, isoCode, whiteBalanceCode, colorModeCode);
+            SelectCaptureDestination(ref info, destination);
+        } finally { Close(ref info); }
+        return Probe(sdkDirectory, serial);
+    }
+
+    static void ValidateCapturedFile(string target, byte[] bytes) {
+        if (bytes == null || bytes.Length < 1024) throw new InvalidDataException("Camera returned an incomplete image file.");
+        string ext = Path.GetExtension(target).ToLowerInvariant();
+        if (ext == ".jpg" || ext == ".jpeg") {
+            if (bytes[0] != 0xFF || bytes[1] != 0xD8 || bytes[bytes.Length - 2] != 0xFF || bytes[bytes.Length - 1] != 0xD9)
+                throw new InvalidDataException("Downloaded JPEG did not contain complete SOI/EOI markers.");
+            return;
+        }
+        if (ext == ".dng" || ext == ".tif" || ext == ".tiff") {
+            bool little = bytes[0] == 0x49 && bytes[1] == 0x49 && bytes[2] == 0x2A && bytes[3] == 0x00;
+            bool big = bytes[0] == 0x4D && bytes[1] == 0x4D && bytes[2] == 0x00 && bytes[3] == 0x2A;
+            if (!little && !big) throw new InvalidDataException("Downloaded DNG/TIFF did not contain a valid TIFF header.");
+            return;
+        }
+        bool any = false;
+        for (int i = 0; i < Math.Min(bytes.Length, 4096); i++) if (bytes[i] != 0) { any = true; break; }
+        if (!any) throw new InvalidDataException("Camera returned an empty image payload.");
     }
 
     static byte[] ExtractJpeg(byte[] value) {
@@ -501,17 +640,21 @@ public static class MotkSigmaSdk {
     switch ($Command) {
         'probe' {
             $details = [MotkSigmaSdk]::Probe($sdkDir, $resolvedSerial)
-            Write-Result @{ ok = $true; camera = $details[0]; firmware = $details[1]; stillMovie = [int]$details[2]; driveMode = [int]$details[3]; specialMode = [int]$details[4]; exposureMode = [int]$details[5]; imageQuality = [int]$details[6]; destination = [int]$details[7]; operationPermission = [int]$details[8]; mediaStatus = [int]$details[9]; mediaFreeShots = [int]$details[10]; frameBuffer = [int]$details[11]; battery = [int]$details[12] }
+            Write-Result @{ ok = $true; camera = $details[0]; firmware = $details[1]; stillMovie = [int]$details[2]; driveMode = [int]$details[3]; specialMode = [int]$details[4]; exposureMode = [int]$details[5]; imageQuality = [int]$details[6]; destination = [int]$details[7]; operationPermission = [int]$details[8]; mediaStatus = [int]$details[9]; mediaFreeShots = [int]$details[10]; frameBuffer = [int]$details[11]; battery = [int]$details[12]; shutterCode = [int]$details[13]; apertureCode = [int]$details[14]; isoAuto = [int]$details[15]; isoCode = [int]$details[16]; whiteBalanceCode = [int]$details[17]; colorModeCode = [int]$details[18] }
         }
         'preview' {
             if (-not $Output) { throw '-Output is required for preview.' }
-            [MotkSigmaSdk]::Preview($sdkDir, $resolvedSerial, $Output)
+            [MotkSigmaSdk]::Preview($sdkDir, $resolvedSerial, $Output, [byte]$Destination, [byte]$ImageQuality, [byte]$ExposureMode, $ShutterCode, $ApertureCode, $ISOAuto, $ISOCode, $WhiteBalanceCode, $ColorModeCode)
             Write-Result @{ ok = $true; output = [IO.Path]::GetFullPath($Output) }
+        }
+        'configure' {
+            $details = [MotkSigmaSdk]::Configure($sdkDir, $resolvedSerial, [byte]$Destination, [byte]$ImageQuality, [byte]$ExposureMode, $ShutterCode, $ApertureCode, $ISOAuto, $ISOCode, $WhiteBalanceCode, $ColorModeCode)
+            Write-Result @{ ok = $true; camera = $details[0]; firmware = $details[1]; stillMovie = [int]$details[2]; driveMode = [int]$details[3]; specialMode = [int]$details[4]; exposureMode = [int]$details[5]; imageQuality = [int]$details[6]; destination = [int]$details[7]; operationPermission = [int]$details[8]; mediaStatus = [int]$details[9]; mediaFreeShots = [int]$details[10]; frameBuffer = [int]$details[11]; battery = [int]$details[12]; shutterCode = [int]$details[13]; apertureCode = [int]$details[14]; isoAuto = [int]$details[15]; isoCode = [int]$details[16]; whiteBalanceCode = [int]$details[17]; colorModeCode = [int]$details[18] }
         }
         'capture' {
             if (-not $OutputDir -or -not $BaseName) { throw '-OutputDir and -BaseName are required for capture.' }
             if ($BaseName -notmatch '^kdr_[0-9]{8}_[0-9]{6}_[0-9]{4}$') { throw 'Unsafe capture base name.' }
-            $files = [MotkSigmaSdk]::Capture($sdkDir, $resolvedSerial, $OutputDir, $BaseName, [byte]$Destination, [byte]$ImageQuality)
+            $files = [MotkSigmaSdk]::Capture($sdkDir, $resolvedSerial, $OutputDir, $BaseName, [byte]$Destination, [byte]$ImageQuality, [byte]$ExposureMode, $ShutterCode, $ApertureCode, $ISOAuto, $ISOCode, $WhiteBalanceCode, $ColorModeCode)
             Write-Result @{ ok = $true; files = @($files) }
         }
     }

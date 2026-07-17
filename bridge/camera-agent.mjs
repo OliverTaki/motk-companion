@@ -155,6 +155,50 @@ const dummyConfig = new Map([
 ]);
 let allowedConfigPaths = new Set(dummyConfig.keys());
 
+const sigmaChoice = (entries) => entries.map(([code, label]) => ({ code, label }));
+const sigmaConfigs = new Map([
+  ['/sigma/exposure/mode', { label: 'Exposure mode', probe: 'exposureMode', arg: '-ExposureMode', choices: sigmaChoice([[1, 'P'], [2, 'A'], [3, 'S'], [4, 'M']]) }],
+  ['/sigma/exposure/shutter', { label: 'Shutter speed', probe: 'shutterCode', arg: '-ShutterCode', choices: sigmaChoice([
+    [16, '30 s'], [19, '25 s'], [21, '20 s'], [24, '15 s'], [27, '13 s'], [29, '10 s'], [32, '8 s'], [35, '6 s'], [37, '5 s'], [40, '4 s'], [43, '3.2 s'], [45, '2.5 s'], [48, '2 s'], [51, '1.6 s'], [53, '1.3 s'], [56, '1 s'], [59, '0.8 s'], [61, '0.6 s'], [64, '0.5 s'], [67, '0.4 s'], [69, '0.3 s'], [72, '1/4'], [75, '1/5'], [77, '1/6'], [80, '1/8'], [83, '1/10'], [85, '1/13'], [88, '1/15'], [91, '1/20'], [93, '1/25'], [96, '1/30'], [99, '1/40'], [101, '1/50'], [104, '1/60'], [107, '1/80'], [109, '1/100'], [112, '1/125'], [115, '1/160'], [117, '1/200'], [120, '1/250'], [123, '1/320'], [125, '1/400'], [128, '1/500'], [131, '1/640'], [133, '1/800'], [136, '1/1000'], [139, '1/1250'], [141, '1/1600'], [144, '1/2000'], [147, '1/2500'], [149, '1/3200'], [152, '1/4000'], [155, '1/5000'], [157, '1/6000'], [160, '1/8000'],
+  ]) }],
+  ['/sigma/exposure/aperture', { label: 'Aperture', probe: 'apertureCode', arg: '-ApertureCode', choices: sigmaChoice([
+    [8, 'f/1.0'], [11, 'f/1.1'], [13, 'f/1.2'], [16, 'f/1.4'], [19, 'f/1.6'], [21, 'f/1.8'], [24, 'f/2.0'], [27, 'f/2.2'], [29, 'f/2.5'], [32, 'f/2.8'], [35, 'f/3.2'], [37, 'f/3.5'], [40, 'f/4.0'], [43, 'f/4.5'], [45, 'f/5.0'], [48, 'f/5.6'], [51, 'f/6.3'], [53, 'f/7.1'], [56, 'f/8.0'], [59, 'f/9.0'], [61, 'f/10'], [64, 'f/11'], [67, 'f/13'], [69, 'f/14'], [72, 'f/16'], [75, 'f/18'], [77, 'f/20'], [80, 'f/22'],
+  ]) }],
+  ['/sigma/exposure/iso-auto', { label: 'ISO control', probe: 'isoAuto', arg: '-ISOAuto', choices: sigmaChoice([[1, 'Auto'], [0, 'Manual']]) }],
+  ['/sigma/exposure/iso', { label: 'ISO', probe: 'isoCode', arg: '-ISOCode', choices: sigmaChoice([[31, '100'], [35, '125'], [37, '160'], [40, '200'], [43, '250'], [45, '320'], [48, '400'], [51, '500'], [53, '640'], [56, '800'], [59, '1000'], [61, '1250'], [64, '1600'], [67, '2000'], [69, '2500'], [72, '3200'], [75, '4000'], [77, '5000'], [80, '6400']]) }],
+  ['/sigma/image/white-balance', { label: 'White balance', probe: 'whiteBalanceCode', arg: '-WhiteBalanceCode', choices: sigmaChoice([[1, 'Auto'], [2, 'Daylight'], [3, 'Shade'], [4, 'Cloudy'], [5, 'Incandescent'], [6, 'Fluorescent'], [7, 'Flash'], [8, 'Custom 1'], [10, 'Custom 2'], [12, 'Custom 3'], [14, 'Color temperature'], [15, 'Auto · light source priority']]) }],
+  ['/sigma/image/color-mode', { label: 'Color mode', probe: 'colorModeCode', arg: '-ColorModeCode', choices: sigmaChoice([[0, 'Normal'], [1, 'Sepia'], [2, 'Monochrome'], [3, 'Standard'], [4, 'Vivid'], [5, 'Neutral'], [6, 'Portrait'], [7, 'Landscape'], [8, 'FOV Classic Blue'], [9, 'Sunset Red'], [10, 'Forest Green'], [11, 'Cinema'], [12, 'FOV Classic Yellow'], [13, 'Teal and Orange'], [14, 'Off'], [15, 'Powder Blue'], [16, 'Duotone'], [17, 'Warm Gold']]) }],
+  ['/sigma/image/quality', { label: 'Image quality', probe: 'imageQuality', arg: '-ImageQuality', choices: sigmaChoice([[2, 'JPEG Fine'], [4, 'JPEG Normal'], [8, 'JPEG Basic'], [16, 'DNG'], [18, 'DNG + JPEG Fine']]) }],
+  ['/sigma/storage/destination', { label: 'Save to', probe: 'destination', arg: '-Destination', choices: sigmaChoice([[2, 'Computer'], [3, 'Camera card + computer']]) }],
+]);
+
+const sigmaConfigFromProbe = (path, definition, probe) => {
+  const code = Number(probe?.[definition.probe]);
+  const selected = definition.choices.find((choice) => choice.code === code);
+  return { path, label: definition.label, type: 'RADIO', current: selected?.label || `Code ${code}`, choices: definition.choices.map((choice) => choice.label), readonly: false };
+};
+const sigmaConfigCode = (definition, value) => {
+  const selected = definition.choices.find((choice) => choice.label === String(value) || String(choice.code) === String(value));
+  if (!selected) throw new Error(`invalid ${definition.label.toLowerCase()}: ${value}`);
+  return selected.code;
+};
+const sigmaOverrides = new Map();
+let sigmaProbeCache = null;
+const sigmaConfigView = (path, definition, probe) => {
+  const base = sigmaConfigFromProbe(path, definition, probe);
+  if (!sigmaOverrides.has(path)) return base;
+  const selected = definition.choices.find((choice) => choice.code === sigmaOverrides.get(path));
+  return { ...base, current: selected?.label || base.current };
+};
+const sigmaOverrideArgs = () => {
+  const output = [];
+  for (const [path, code] of sigmaOverrides) {
+    const definition = sigmaConfigs.get(path);
+    if (definition) output.push(definition.arg, String(code));
+  }
+  return output;
+};
+
 function parseConfig(text, path) {
   const out = { path, label: path.split('/').pop(), type: 'TEXT', current: '', choices: [], readonly: false };
   for (const line of String(text).split(/\r?\n/)) {
@@ -175,6 +219,11 @@ function parseConfig(text, path) {
 async function getConfigDirect(path) {
   if (!allowedConfigPaths.has(path)) throw new Error('unknown camera config: ' + path);
   if (BACKEND === 'dummy') return { path, ...dummyConfig.get(path) };
+  if (BACKEND === 'sigma') {
+    const definition = sigmaConfigs.get(path);
+    if (!sigmaProbeCache) sigmaProbeCache = await runSigma('probe');
+    return sigmaConfigView(path, definition, sigmaProbeCache);
+  }
   if (BACKEND !== 'gphoto2') throw new Error(`camera settings are not available for the ${BACKEND} backend`);
   const r = await run('gphoto2', ['--get-config', path], 10000);
   if (r.err) throw new Error(r.stderr.trim() || r.err.message);
@@ -184,6 +233,11 @@ const getConfig = (path) => withCamera(() => getConfigDirect(path));
 
 async function listConfigsDirect() {
   if (BACKEND === 'dummy') return [...dummyConfig].map(([path, config]) => ({ path, ...config }));
+  if (BACKEND === 'sigma') {
+    allowedConfigPaths = new Set(sigmaConfigs.keys());
+    sigmaProbeCache = await runSigma('probe');
+    return [...sigmaConfigs].map(([path, definition]) => sigmaConfigView(path, definition, sigmaProbeCache));
+  }
   if (BACKEND !== 'gphoto2') return [];
   const r = await run('gphoto2', ['--list-config'], 10000);
   if (r.err) throw new Error(r.stderr.trim() || r.err.message);
@@ -208,6 +262,13 @@ async function setConfigDirect(path, value) {
     config.current = String(value);
     return getConfigDirect(path);
   }
+  if (BACKEND === 'sigma') {
+    const definition = sigmaConfigs.get(path);
+    const code = sigmaConfigCode(definition, value);
+    sigmaOverrides.set(path, code);
+    if (path === '/sigma/exposure/iso') sigmaOverrides.set('/sigma/exposure/iso-auto', 0);
+    return sigmaConfigView(path, definition, sigmaProbeCache || {});
+  }
   if (BACKEND !== 'gphoto2') throw new Error(`camera settings are not available for the ${BACKEND} backend`);
   const r = await run('gphoto2', ['--set-config', `${path}=${value}`], 10000);
   if (r.err) throw new Error(r.stderr.trim() || r.err.message);
@@ -230,7 +291,8 @@ if (BACKEND === 'auto') {
   }
   }
 } else if (BACKEND === 'sigma') {
-  await runSigma('probe');
+  sigmaProbeCache = await runSigma('probe');
+  allowedConfigPaths = new Set(sigmaConfigs.keys());
 }
 console.log(`[agent] backend=${BACKEND}  dir=${DIR}  productionRoot=${PRODUCTION_ROOT}`);
 
@@ -245,7 +307,7 @@ const stamp = () => {
 async function shootDirect() {
   const base = 'kdr_' + stamp();
   if (BACKEND === 'sigma') {
-    const result = await runSigma('capture', ['-OutputDir', DIR, '-BaseName', base], 90000);
+    const result = await runSigma('capture', ['-OutputDir', DIR, '-BaseName', base, ...sigmaOverrideArgs()], 90000);
     return result.files.map((file) => resolve(file));
   }
   if (BACKEND === 'gphoto2') {
@@ -338,7 +400,7 @@ async function previewFrame() {
   if (BACKEND === 'sigma') {
     const target = join(DIR, `.motk-preview-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.jpg`);
     try {
-      await withCamera(() => runSigma('preview', ['-Output', target], 30000));
+      await withCamera(() => runSigma('preview', ['-Output', target, ...sigmaOverrideArgs()], 30000));
       const jpeg = readFileSync(target);
       if (jpeg.length < 4 || jpeg[0] !== 0xff || jpeg[1] !== 0xd8) throw new Error('SIGMA preview was not a JPEG');
       return jpeg;
