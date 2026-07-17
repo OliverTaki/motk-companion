@@ -19,7 +19,7 @@ assert.doesNotMatch(agent, /\[\[1, 'Camera card'\]/, 'MOTK captures must always 
 assert.match(helper, /sgm_SetCamDataGrp1/);
 assert.match(helper, /whiteBalanceCode/);
 assert.match(helper, /colorModeCode/);
-assert.match(helper, /ValidateCapturedFile\(target, fileBytes\)/);
+assert.match(helper, /NormalizeCapturedFile\(target, stream\.ToArray\(\)\)/);
 assert.match(helper, /if \(captureIssued && !captureCleared\) try \{ sgm_ClearImageDBSingle/);
 
 console.log('MOTK Companion SIGMA SDK settings self-test: PASS');

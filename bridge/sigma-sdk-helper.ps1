@@ -560,18 +560,25 @@ public static class MotkSigmaSdk {
                             Check(sgm_GetBigPartialPictFile(ref info, p.FileAddress, offset, request, out chunk, out received), "sgm_GetBigPartialPictFile");
                             if (chunk == IntPtr.Zero || received == 0 || received > request + 4096) throw new InvalidDataException("Camera returned an invalid image chunk (requested " + request + ", received " + received + ").");
                             var bytes = new byte[received]; Marshal.Copy(chunk, bytes, 0, checked((int)received));
-                            int wrapper = checked((int)(received > request ? received - request : 0));
-                            int payload = checked((int)received) - wrapper;
-                            // Some fp firmware/USB sessions return a private SDK response envelope
-                            // before each documented payload. Its observed size is not stable (10,
-                            // 49, or 62 bytes), so bound it here and validate the reconstructed file
-                            // signature below instead of assuming one firmware-specific envelope.
-                            if (wrapper < 0 || wrapper > 4096) throw new InvalidDataException("Camera returned an invalid image wrapper of " + wrapper + " bytes.");
-                            stream.Write(bytes, wrapper, payload); offset += (uint)payload;
+                            // Verified against a real fp still (2026-07-18): each response is
+                            // [4-byte little-endian payload length][payload][trailer]. The old
+                            // front-strip of (received - request) ate real leading file bytes.
+                            int start, payload;
+                            uint declared = received >= 8 ? BitConverter.ToUInt32(bytes, 0) : 0;
+                            if (declared > 0 && declared <= received - 4) {
+                                start = 4; payload = checked((int)declared);
+                            } else {
+                                int wrapper = checked((int)(received > request ? received - request : 0));
+                                if (wrapper < 0 || wrapper > 4096) throw new InvalidDataException("Camera returned an invalid image wrapper of " + wrapper + " bytes.");
+                                start = wrapper; payload = checked((int)received) - wrapper;
+                            }
+                            if (payload <= 0) break;
+                            stream.Write(bytes, start, payload); offset += (uint)payload;
                         }
-                        if (stream.Length != p.FileSize) throw new InvalidDataException("Downloaded image size does not match camera metadata.");
-                        var fileBytes = stream.ToArray();
-                        ValidateCapturedFile(target, fileBytes);
+                        // FileSize is documented as a theoretical maximum; require content but
+                        // tolerate a shorter actual file (trailing padding is trimmed below).
+                        if (stream.Length < 1024) throw new InvalidDataException("Downloaded image size does not match camera metadata.");
+                        var fileBytes = NormalizeCapturedFile(target, stream.ToArray());
                         AtomicWrite(target, fileBytes);
                     }
                     saved.Add(target);
@@ -605,23 +612,40 @@ public static class MotkSigmaSdk {
         return Probe(sdkDirectory, serial);
     }
 
-    static void ValidateCapturedFile(string target, byte[] bytes) {
+    static byte[] NormalizeCapturedFile(string target, byte[] bytes) {
         if (bytes == null || bytes.Length < 1024) throw new InvalidDataException("Camera returned an incomplete image file.");
         string ext = Path.GetExtension(target).ToLowerInvariant();
         if (ext == ".jpg" || ext == ".jpeg") {
-            if (bytes[0] != 0xFF || bytes[1] != 0xD8 || bytes[bytes.Length - 2] != 0xFF || bytes[bytes.Length - 1] != 0xD9)
-                throw new InvalidDataException("Downloaded JPEG did not contain complete SOI/EOI markers.");
-            return;
+            if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[bytes.Length - 2] == 0xFF && bytes[bytes.Length - 1] == 0xD9)
+                return bytes;
+            // The SDK reports FileSize as a theoretical maximum, so the
+            // reassembled stream can carry leading envelope bytes and trailing
+            // padding. Locate SOI near the start and the LAST EOI (embedded
+            // EXIF thumbnails contain their own earlier EOI), then trim.
+            int start = -1;
+            for (int i = 0; i + 1 < Math.Min(bytes.Length, 4096); i++) {
+                if (bytes[i] == 0xFF && bytes[i + 1] == 0xD8) { start = i; break; }
+            }
+            int end = -1;
+            for (int i = bytes.Length - 2; i > start && start >= 0; i--) {
+                if (bytes[i] == 0xFF && bytes[i + 1] == 0xD9) { end = i + 2; break; }
+            }
+            if (start < 0 || end <= start || end - start < 1024)
+                throw new InvalidDataException("Downloaded JPEG did not contain complete SOI/EOI markers (len=" + bytes.Length + ", soi=" + start + ", eoi=" + end + ").");
+            var trimmed = new byte[end - start];
+            Array.Copy(bytes, start, trimmed, 0, trimmed.Length);
+            return trimmed;
         }
         if (ext == ".dng" || ext == ".tif" || ext == ".tiff") {
             bool little = bytes[0] == 0x49 && bytes[1] == 0x49 && bytes[2] == 0x2A && bytes[3] == 0x00;
             bool big = bytes[0] == 0x4D && bytes[1] == 0x4D && bytes[2] == 0x00 && bytes[3] == 0x2A;
             if (!little && !big) throw new InvalidDataException("Downloaded DNG/TIFF did not contain a valid TIFF header.");
-            return;
+            return bytes;
         }
         bool any = false;
         for (int i = 0; i < Math.Min(bytes.Length, 4096); i++) if (bytes[i] != 0) { any = true; break; }
         if (!any) throw new InvalidDataException("Camera returned an empty image payload.");
+        return bytes;
     }
 
     static byte[] ExtractJpeg(byte[] value) {
