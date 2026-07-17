@@ -165,7 +165,7 @@ const sigmaConfigs = new Map([
     [8, 'f/1.0'], [11, 'f/1.1'], [13, 'f/1.2'], [16, 'f/1.4'], [19, 'f/1.6'], [21, 'f/1.8'], [24, 'f/2.0'], [27, 'f/2.2'], [29, 'f/2.5'], [32, 'f/2.8'], [35, 'f/3.2'], [37, 'f/3.5'], [40, 'f/4.0'], [43, 'f/4.5'], [45, 'f/5.0'], [48, 'f/5.6'], [51, 'f/6.3'], [53, 'f/7.1'], [56, 'f/8.0'], [59, 'f/9.0'], [61, 'f/10'], [64, 'f/11'], [67, 'f/13'], [69, 'f/14'], [72, 'f/16'], [75, 'f/18'], [77, 'f/20'], [80, 'f/22'],
   ]) }],
   ['/sigma/exposure/iso-auto', { label: 'ISO control', probe: 'isoAuto', arg: '-ISOAuto', choices: sigmaChoice([[1, 'Auto'], [0, 'Manual']]) }],
-  ['/sigma/exposure/iso', { label: 'ISO', probe: 'isoCode', arg: '-ISOCode', choices: sigmaChoice([[31, '100'], [35, '125'], [37, '160'], [40, '200'], [43, '250'], [45, '320'], [48, '400'], [51, '500'], [53, '640'], [56, '800'], [59, '1000'], [61, '1250'], [64, '1600'], [67, '2000'], [69, '2500'], [72, '3200'], [75, '4000'], [77, '5000'], [80, '6400']]) }],
+  ['/sigma/exposure/iso', { label: 'ISO', probe: 'isoCode', arg: '-ISOCode', choices: sigmaChoice([['auto', 'Auto'], [31, '100'], [35, '125'], [37, '160'], [40, '200'], [43, '250'], [45, '320'], [48, '400'], [51, '500'], [53, '640'], [56, '800'], [59, '1000'], [61, '1250'], [64, '1600'], [67, '2000'], [69, '2500'], [72, '3200'], [75, '4000'], [77, '5000'], [80, '6400']]) }],
   ['/sigma/image/white-balance', { label: 'White balance', probe: 'whiteBalanceCode', arg: '-WhiteBalanceCode', choices: sigmaChoice([[1, 'Auto'], [2, 'Daylight'], [3, 'Shade'], [4, 'Cloudy'], [5, 'Incandescent'], [6, 'Fluorescent'], [7, 'Flash'], [8, 'Custom 1'], [10, 'Custom 2'], [12, 'Custom 3'], [14, 'Color temperature'], [15, 'Auto · light source priority']]) }],
   ['/sigma/image/color-mode', { label: 'Color mode', probe: 'colorModeCode', arg: '-ColorModeCode', choices: sigmaChoice([[0, 'Normal'], [1, 'Sepia'], [2, 'Monochrome'], [3, 'Standard'], [4, 'Vivid'], [5, 'Neutral'], [6, 'Portrait'], [7, 'Landscape'], [8, 'FOV Classic Blue'], [9, 'Sunset Red'], [10, 'Forest Green'], [11, 'Cinema'], [12, 'FOV Classic Yellow'], [13, 'Teal and Orange'], [14, 'Off'], [15, 'Powder Blue'], [16, 'Duotone'], [17, 'Warm Gold']]) }],
   ['/sigma/image/quality', { label: 'Image quality', probe: 'imageQuality', arg: '-ImageQuality', choices: sigmaChoice([[2, 'JPEG Fine'], [4, 'JPEG Normal'], [8, 'JPEG Basic'], [16, 'DNG'], [18, 'DNG + JPEG Fine']]) }],
@@ -173,6 +173,9 @@ const sigmaConfigs = new Map([
 ]);
 
 const sigmaConfigFromProbe = (path, definition, probe) => {
+  if (path === '/sigma/exposure/iso' && Number(probe?.isoAuto) === 1) {
+    return { path, label: definition.label, type: 'RADIO', current: 'Auto', choices: definition.choices.map((choice) => choice.label), readonly: false };
+  }
   const code = Number(probe?.[definition.probe]);
   const selected = definition.choices.find((choice) => choice.code === code);
   return { path, label: definition.label, type: 'RADIO', current: selected?.label || `Code ${code}`, choices: definition.choices.map((choice) => choice.label), readonly: false };
@@ -184,6 +187,7 @@ const sigmaConfigCode = (definition, value) => {
 };
 const sigmaOverrides = new Map();
 let sigmaProbeCache = null;
+let lastConfigError = null;
 const sigmaConfigView = (path, definition, probe) => {
   const base = sigmaConfigFromProbe(path, definition, probe);
   if (!sigmaOverrides.has(path)) return base;
@@ -236,7 +240,9 @@ async function listConfigsDirect() {
   if (BACKEND === 'sigma') {
     allowedConfigPaths = new Set(sigmaConfigs.keys());
     sigmaProbeCache = await runSigma('probe');
-    return [...sigmaConfigs].map(([path, definition]) => sigmaConfigView(path, definition, sigmaProbeCache));
+    return [...sigmaConfigs]
+      .filter(([path]) => path !== '/sigma/exposure/iso-auto')
+      .map(([path, definition]) => sigmaConfigView(path, definition, sigmaProbeCache));
   }
   if (BACKEND !== 'gphoto2') return [];
   const r = await run('gphoto2', ['--list-config'], 10000);
@@ -264,6 +270,12 @@ async function setConfigDirect(path, value) {
   }
   if (BACKEND === 'sigma') {
     const definition = sigmaConfigs.get(path);
+    if (path === '/sigma/exposure/iso' && String(value).toLowerCase() === 'auto') {
+      // Auto lives inside the ISO choice list; there is no separate mode toggle.
+      sigmaOverrides.delete('/sigma/exposure/iso');
+      sigmaOverrides.set('/sigma/exposure/iso-auto', 1);
+      return sigmaConfigView(path, definition, sigmaProbeCache || {});
+    }
     const code = sigmaConfigCode(definition, value);
     sigmaOverrides.set(path, code);
     if (path === '/sigma/exposure/iso') sigmaOverrides.set('/sigma/exposure/iso-auto', 0);
@@ -408,7 +420,17 @@ async function previewFrame() {
   if (BACKEND === 'sigma') {
     const target = join(DIR, `.motk-preview-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.jpg`);
     try {
-      await withCamera(() => runSigma('preview', ['-Output', target, ...sigmaOverrideArgs()], 30000));
+      try {
+        await withCamera(() => runSigma('preview', ['-Output', target, ...sigmaOverrideArgs()], 30000));
+      } catch (error) {
+        if (!sigmaOverrides.size) throw error;
+        // The camera rejected a session setting. Never let one bad value kill
+        // live view: revert to the camera's own state and keep streaming.
+        lastConfigError = { message: String(error.message || error), reverted: [...sigmaOverrides.keys()] };
+        console.warn('[agent] camera rejected session settings (' + lastConfigError.message + '); reverting overrides and continuing live view.');
+        sigmaOverrides.clear();
+        await withCamera(() => runSigma('preview', ['-Output', target], 30000));
+      }
       const jpeg = readFileSync(target);
       if (jpeg.length < 4 || jpeg[0] !== 0xff || jpeg[1] !== 0xd8) throw new Error('SIGMA preview was not a JPEG');
       return jpeg;
@@ -521,12 +543,14 @@ server.on('upgrade', (req, socket) => {
     try {
       const jpeg = await previewFrame();
       if (liveView.active && !socket.destroyed) {
-        sendJson({
+        const frame = {
           type: 'tether.liveview.frame',
           seq: ++liveView.seq,
           capturedAt: new Date().toISOString(),
           jpeg: jpeg.toString('base64'),
-        });
+        };
+        if (lastConfigError) { frame.configWarning = lastConfigError.message; lastConfigError = null; }
+        sendJson(frame);
       }
     } catch (e) {
       if (liveView.active) {

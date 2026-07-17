@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { loadOrCreatePairingRecord, pairingTokenMatches, tokenFromUpgradeRequest } from './bridge/pairing-token.mjs';
 import { JournalJobStore } from './lib/job-store.mjs';
 
-export const VERSION = '0.4.0-beta.8';
+export const VERSION = '0.4.0-beta.9';
 const appRoot = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const args = process.argv.slice(2);
 const valueFor = (name, fallback) => {
