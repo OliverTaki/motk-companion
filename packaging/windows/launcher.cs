@@ -15,6 +15,13 @@ internal static class MotkCompanionApp
     [STAThread]
     private static int Main(string[] args)
     {
+        // A motk-companion:// browser launch (or a second manual start) must not
+        // spawn a duplicate Control Center; the first instance already runs the
+        // local services, so a repeat invocation simply succeeds and exits.
+        bool firstInstance;
+        using (var instanceGate = new Mutex(true, "MOTKCompanionControlCenter", out firstInstance))
+        {
+        if (!firstInstance) return 0;
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         try
@@ -26,6 +33,7 @@ internal static class MotkCompanionApp
         {
             MessageBox.Show(error.Message, "MOTK Companion", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return 1;
+        }
         }
     }
 }

@@ -76,7 +76,7 @@ $launcherPayload = (Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'wind
 $launcherPath = Join-Path $internal 'MOTK Companion.exe'
 [System.IO.File]::WriteAllBytes($launcherPath, [Convert]::FromBase64String($launcherPayload))
 $launcherHash = (Get-FileHash -LiteralPath $launcherPath -Algorithm SHA256).Hash.ToLowerInvariant()
-if ($launcherHash -ne 'f766f73df68fe24364dd65fda689eb3524ed9c5a67ee0f515fd90cb2d7ea69f2') { throw 'MOTK Companion launcher payload checksum mismatch.' }
+if ($launcherHash -ne '6708bdbf88bba399de4c9604834370a4c976f6a1054ff65c773198bf881876ed') { throw 'MOTK Companion launcher payload checksum mismatch.' }
 
 $runtimeZip = Join-Path $cachePath ([System.IO.Path]::GetFileName([string]$lock.node.url))
 if (-not (Test-Path -LiteralPath $runtimeZip)) { Invoke-WebRequest -UseBasicParsing -Uri $lock.node.url -OutFile $runtimeZip }

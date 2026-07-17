@@ -39,3 +39,6 @@ else {
   [ordered]@{ uninstalledAt = [DateTimeOffset]::UtcNow.ToString('o'); retainedData = $dataPath; priorInstall = $installPath } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $dataPath 'uninstall-state.json') -Encoding utf8
 }
 [ordered]@{ ok = $true; removedInstall = $installPath; dataRemoved = [bool]$RemoveData; retainedData = if ($RemoveData) { $null } else { $dataPath } } | ConvertTo-Json
+
+# Remove the motk-companion:// URL scheme registration.
+try { Remove-Item -Path 'HKCU:\Software\Classes\motk-companion' -Recurse -Force -ErrorAction SilentlyContinue } catch {}

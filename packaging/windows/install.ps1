@@ -158,6 +158,16 @@ if (-not $NoShortcut) {
   $shortcut.Arguments = ''
   $shortcut.WorkingDirectory = $installPath
   $shortcut.Save()
+
+  # Register the motk-companion:// URL scheme so web pages (MOTK site, Shoot)
+  # can start the Control Center with one click. Per-user, no admin required.
+  $exePath = Join-Path $installPath 'MOTK Companion.exe'
+  $protoRoot = 'HKCU:\Software\Classes\motk-companion'
+  New-Item -Path $protoRoot -Force | Out-Null
+  Set-ItemProperty -Path $protoRoot -Name '(Default)' -Value 'URL:MOTK Companion'
+  Set-ItemProperty -Path $protoRoot -Name 'URL Protocol' -Value ''
+  New-Item -Path (Join-Path $protoRoot 'shell\open\command') -Force | Out-Null
+  Set-ItemProperty -Path (Join-Path $protoRoot 'shell\open\command') -Name '(Default)' -Value ('"' + $exePath + '" "%1"')
 }
 
 $oldBackups = Get-ChildItem -LiteralPath (Join-Path $dataPath 'updates') -Directory -Filter 'install-*' -ErrorAction SilentlyContinue | Sort-Object LastWriteTimeUtc -Descending | Select-Object -Skip 2
