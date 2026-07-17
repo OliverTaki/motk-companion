@@ -42,7 +42,7 @@ function Save-CompanionSettings([string]$Root, [string]$Backend, [string]$SdkZip
   New-Item -ItemType Directory -Force -Path $rootPath | Out-Null
   $settings.allowOrigin = $officialOrigin
   $settings.productionRoot = $rootPath
-  $settings.captureInbox = Join-Path $rootPath '.companion-capture'
+  $settings.captureInbox = Join-Path $rootPath 'Camera Originals'
   $settings.cameraBackend = $Backend
   $settings | Add-Member -NotePropertyName sigmaSdkZip -NotePropertyValue $(if ($Backend -eq 'sigma') { $SdkZip } else { '' }) -Force
   $settings | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $configPath -Encoding utf8
@@ -205,4 +205,3 @@ $form.Controls.Add($save)
 $form.AcceptButton = $save
 
 [void]$form.ShowDialog()
-

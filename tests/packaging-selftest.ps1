@@ -59,6 +59,7 @@ try {
   Assert-True ($configured.productionRoot -eq [System.IO.Path]::GetFullPath($friendlyMedia)) 'setup did not save the selected local media folder'
   $config = Get-Content -Raw -LiteralPath $configPath | ConvertFrom-Json
   Assert-True ($config.allowOrigin -eq 'https://motk-public-site.pages.dev') 'setup did not trust the official MOTK public site origin'
+  Assert-True ([string]$config.captureInbox -eq (Join-Path ([System.IO.Path]::GetFullPath($friendlyMedia)) 'Camera Originals')) 'setup did not use the visible Camera Originals folder'
   $config | Add-Member -NotePropertyName selfTestMarker -NotePropertyValue 'keep-config' -Force
   do { $statusPort = Get-Random -Minimum 21000 -Maximum 45000; $busPort = $statusPort + 1 } until ((Test-FreeTcpPort $statusPort) -and (Test-FreeTcpPort $busPort))
   $config.statusPort = $statusPort

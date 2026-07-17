@@ -4,7 +4,7 @@
   "busPort": 8793,
   "statusPort": 8794,
   "productionRoot": "./production-test",
-  "captureInbox": "./production-test/.companion-capture",
+  "captureInbox": "./production-test/Camera Originals",
   "tokenStore": "./config/pairing-token.json",
   "jobStore": "./state/jobs.jsonl",
   "logsDir": "./logs",

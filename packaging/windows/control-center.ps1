@@ -50,7 +50,7 @@ function Save-CompanionSettings([string]$Root, [string]$Backend, [string]$SdkZip
   New-Item -ItemType Directory -Force -Path $rootPath | Out-Null
   $settings.allowOrigin = $officialOrigin
   $settings.productionRoot = $rootPath
-  $settings.captureInbox = Join-Path $rootPath '.companion-capture'
+  $settings.captureInbox = Join-Path $rootPath 'Camera Originals'
   $settings.cameraBackend = $Backend
   $settings.recipesDir = Join-Path $internalRoot 'app\recipes'
   $settings | Add-Member -NotePropertyName sigmaSdkZip -NotePropertyValue $(if ($Backend -eq 'sigma') { $SdkZip } else { '' }) -Force
@@ -64,6 +64,20 @@ function Start-InstalledCompanion {
   if (-not (Test-Path -LiteralPath $launcher -PathType Leaf)) { throw 'Companion launcher is missing.' }
   $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$launcher`" -DataDir `"$dataPath`""
   Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments -WorkingDirectory $installPath -WindowStyle Hidden
+}
+
+function Restart-InstalledCompanion {
+  $runtime = [System.IO.Path]::GetFullPath((Join-Path $internalRoot 'runtime\node.exe'))
+  $launcher = [System.IO.Path]::GetFullPath((Join-Path $internalRoot 'scripts\motk-companion.ps1'))
+  $owned = @(Get-CimInstance Win32_Process | Where-Object {
+    $executable = if ($_.ExecutablePath) { [System.IO.Path]::GetFullPath([string]$_.ExecutablePath) } else { '' }
+    ($executable.Equals($runtime, [StringComparison]::OrdinalIgnoreCase)) -or
+      ($_.Name -ieq 'powershell.exe' -and [string]$_.CommandLine -like "*$launcher*")
+  })
+  foreach ($process in @($owned | Where-Object Name -ieq 'node.exe')) { Stop-Process -Id ([int]$process.ProcessId) -Force -ErrorAction SilentlyContinue }
+  foreach ($process in @($owned | Where-Object Name -ieq 'powershell.exe')) { Stop-Process -Id ([int]$process.ProcessId) -Force -ErrorAction SilentlyContinue }
+  for ($attempt = 0; $attempt -lt 30 -and (Test-CompanionRunning); $attempt++) { Start-Sleep -Milliseconds 100 }
+  Start-InstalledCompanion
 }
 
 function Test-CompanionRunning {
@@ -363,7 +377,7 @@ $saveButton.Add_Click({
   try {
     $backend = $cameraOptions[[string]$cameraBox.SelectedItem]
     [void](Save-CompanionSettings $folderBox.Text $backend $sdkBox.Text)
-    Start-InstalledCompanion
+    Restart-InstalledCompanion
     if (-not (Wait-Companion)) { throw 'Companion did not start.' }
     $script:FirstRun = $false
     Set-SettingsVisible $false

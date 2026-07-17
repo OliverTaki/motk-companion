@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { loadOrCreatePairingRecord, pairingTokenMatches, tokenFromUpgradeRequest } from './bridge/pairing-token.mjs';
 import { JournalJobStore } from './lib/job-store.mjs';
 
-export const VERSION = '0.4.0-beta.4';
+export const VERSION = '0.4.0-beta.5';
 const appRoot = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const args = process.argv.slice(2);
 const valueFor = (name, fallback) => {
@@ -28,7 +28,7 @@ const statusPort = Number(config.statusPort || 8794);
 const internalBridgePort = Number(config.internalBridgePort || (busPort + (statusPort === busPort + 2 ? 3 : 2)));
 const productionRoot = localPath(config.productionRoot, './production');
 const tokenStore = localPath(config.tokenStore, './config/pairing-token.json');
-const originals = localPath(config.captureInbox, './production/.companion-capture');
+const originals = localPath(config.captureInbox, './production/Camera Originals');
 const jobStorePath = localPath(config.jobStore, './state/jobs.jsonl');
 const capabilities = new Map();
 let stopping = false;

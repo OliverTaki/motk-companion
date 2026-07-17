@@ -17,8 +17,10 @@ remain model- and workflow-specific.
 Extract the Windows ZIP and double-click **INSTALL MOTK COMPANION.cmd**. Choose
 storage and camera once, then use the visual Control Center: **SHOOT** opens and
 pairs MOTK Shoot automatically, while **FILES** opens the exact local production
-folder. Settings and manual pairing for another device are behind the gear
-control. No PowerShell command needs to be typed.
+folder. Physical-camera files are written to the visible **Camera Originals**
+subfolder. Settings and manual pairing for another device are behind the gear
+control. Saving a changed camera or SDK restarts only Companion's local services,
+so the new backend is active immediately. No PowerShell command needs to be typed.
 
 The Companion supervisor starts the absorbed bridge, monitors its lifecycle,
 and serves JSON diagnostics at `/status`. A 32-byte first-run pairing token is

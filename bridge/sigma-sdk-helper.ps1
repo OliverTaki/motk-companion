@@ -12,7 +12,11 @@ param(
     [string]$Serial = '',
     [string]$Output = '',
     [string]$OutputDir = '',
-    [string]$BaseName = ''
+    [string]$BaseName = '',
+    [ValidateSet(1, 2, 3)]
+    [int]$Destination = 2,
+    [ValidateSet(0, 2, 4, 8, 16, 18)]
+    [int]$ImageQuality = 0
 )
 
 $ErrorActionPreference = 'Stop'
@@ -46,6 +50,11 @@ function Get-SdkDirectory([string]$ZipPath) {
     $required = @(
         'SIGMA_cmd.dll', 'SIGMA_ConfigAPI.dll', 'SIGMA_CloseApplication.dll',
         'SIGMA_GetCamViewFrame.dll', 'SIGMA_SnapCommand.dll',
+        'SIGMA_GetCamDataGrp1.dll',
+        'SIGMA_GetCamDataGrp2.dll', 'SIGMA_SetCamDataGrp2.dll',
+        'SIGMA_GetCamDataGrp3.dll', 'SIGMA_SetCamDataGrp3.dll',
+        'SIGMA_GetCamOpPermission.dll', 'SIGMA_SetCamOpPermission.dll',
+        'SIGMA_GetCamDataGroupMovie.dll', 'SIGMA_SetCamDataGroupMovie.dll',
         'SIGMA_GetCamStatus2.dll', 'SIGMA_GetCamCaptStatus.dll',
         'SIGMA_ClearImageDBSingle.dll',
         'SIGMA_GetPictFileInfo2.dll', 'SIGMA_GetBigPartialPictFile.dll'
@@ -103,10 +112,42 @@ public static class MotkSigmaSdk {
     public struct IfdArray { public uint DirectoryCount; public IntPtr Directory; }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct ImageFileDirectory {
+        public ushort TagId, Type;
+        public uint Count;
+        public IntPtr Value;
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct CaptureStatus {
         public byte ImageId, DatabaseHead, DatabaseTail;
         public ushort Status;
         public byte Destination;
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct DataGroup3 {
+        public byte FieldPresent1, FieldPresent2;
+        public sbyte Contrast, Sharpness, Saturation, ColorSpace, ColorMode, BatteryKind;
+        public ushort LensWideFocalLength, LensTeleFocalLength;
+        public sbyte AFAuxiliaryLight, AFBeep, UPSetting, ExtendedMode, AutoRotate, TimerSound, RCChannel, DestinationToSave;
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct DataGroup2 {
+        public byte FieldPresent1, FieldPresent2;
+        public sbyte DriveMode, SpecialMode, ExposureMode, AEMeteringMode, AELock, AFMode, AFAreaMode, AFLock;
+        public sbyte FlashType, FlashFire, FlashMode, FlashSetting, FlashExpCompensation, WhiteBalance, Resolution, ImageQuality;
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct DataGroup1 {
+        public byte FieldPresent1, FieldPresent2;
+        public sbyte ShutterSpeed, Aperture, ProgramShift, ISOAuto, ISOSpeed, ExpCompensation, ABValue, ABSetting, FrameBufferState;
+        public ushort MediaFreeSpace;
+        public sbyte MediaStatus;
+        public ushort CurrentLensFocalLength;
+        public sbyte BatteryState, AbShotRemainNumber, ExpCompExcludeAB, AfButtonSetting;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1, CharSet = CharSet.Ansi)]
@@ -135,12 +176,31 @@ public static class MotkSigmaSdk {
     static extern int sgm_GetCamViewFrame(ref SdkInfo info, out IntPtr buffer, out uint actualSize);
     [DllImport("SIGMA_SnapCommand.dll", CallingConvention = CallingConvention.Winapi)]
     static extern int sgm_SnapCommand(ref SdkInfo info, ref SnapState state);
+    [DllImport("SIGMA_GetCamDataGrp1.dll", CallingConvention = CallingConvention.Winapi)]
+    static extern int sgm_GetCamDataGrp1(ref SdkInfo info, out DataGroup1 group);
+    [DllImport("SIGMA_GetCamDataGrp2.dll", CallingConvention = CallingConvention.Winapi)]
+    static extern int sgm_GetCamDataGrp2(ref SdkInfo info, out DataGroup2 group);
+    [DllImport("SIGMA_SetCamDataGrp2.dll", CallingConvention = CallingConvention.Winapi)]
+    static extern int sgm_SetCamDataGrp2(ref SdkInfo info, ref DataGroup2 group);
+    [DllImport("SIGMA_GetCamDataGrp3.dll", CallingConvention = CallingConvention.Winapi)]
+    static extern int sgm_GetCamDataGrp3(ref SdkInfo info, out DataGroup3 group);
+    [DllImport("SIGMA_SetCamDataGrp3.dll", CallingConvention = CallingConvention.Winapi)]
+    static extern int sgm_SetCamDataGrp3(ref SdkInfo info, ref DataGroup3 group);
+    [DllImport("SIGMA_GetCamOpPermission.dll", CallingConvention = CallingConvention.Winapi)]
+    static extern int sgm_GetCamOpPermission(ref SdkInfo info, out IfdArray permission);
+    [DllImport("SIGMA_SetCamOpPermission.dll", CallingConvention = CallingConvention.Winapi)]
+    static extern int sgm_SetCamOpPermission(ref SdkInfo info, ref IfdArray permission);
+    [DllImport("SIGMA_GetCamDataGroupMovie.dll", CallingConvention = CallingConvention.Winapi)]
+    static extern int sgm_GetCamDataGroupMovie(ref SdkInfo info, out IfdArray movie);
+    [DllImport("SIGMA_SetCamDataGroupMovie.dll", CallingConvention = CallingConvention.Winapi)]
+    static extern int sgm_SetCamDataGroupMovie(ref SdkInfo info, ref IfdArray movie);
     [DllImport("SIGMA_GetCamStatus2.dll", CallingConvention = CallingConvention.Winapi)]
     static extern int sgm_GetCamStatus2(ref SdkInfo info, uint canSet, uint groups, uint other,
         IntPtr status, int bufferLength, out int receivedLength);
     [DllImport("SIGMA_GetCamCaptStatus.dll", CallingConvention = CallingConvention.Winapi)]
     static extern int sgm_GetCamCaptStatus(ref SdkInfo info, uint imageId, out CaptureStatus status);
-    [DllImport("SIGMA_ClearImageDBSingle.dll", CallingConvention = CallingConvention.Winapi)]
+    // SIGMA's exported symbol intentionally contains the SDK header's `Signle` typo.
+    [DllImport("SIGMA_ClearImageDBSingle.dll", EntryPoint = "sgm_ClearImageDBSignle", CallingConvention = CallingConvention.Winapi)]
     static extern int sgm_ClearImageDBSingle(ref SdkInfo info, int imageId);
     [DllImport("SIGMA_GetPictFileInfo2.dll", CallingConvention = CallingConvention.Winapi)]
     static extern int sgm_GetPictFileInfo2(ref SdkInfo info, IntPtr pictures,
@@ -186,21 +246,119 @@ public static class MotkSigmaSdk {
         var database = CaptureDatabase(ref info);
         byte id = database.DatabaseHead;
         for (int count = 0; count < 256 && id != database.DatabaseTail; count++, id++) {
-            try { sgm_ClearImageDBSingle(ref info, id); } catch {}
+            Check(sgm_ClearImageDBSingle(ref info, id), "sgm_ClearImageDBSingle(" + id + ")");
         }
+        var cleared = CaptureDatabase(ref info);
+        if (cleared.DatabaseHead != cleared.DatabaseTail) throw new InvalidOperationException("Camera capture database did not clear (DB " + cleared.DatabaseHead + "-" + cleared.DatabaseTail + ").");
+    }
+    static void SelectCaptureDestination(ref SdkInfo info, byte destination) {
+        DataGroup3 group;
+        Check(sgm_GetCamDataGrp3(ref info, out group), "sgm_GetCamDataGrp3");
+        if ((group.FieldPresent2 & 0x80) == 0) throw new NotSupportedException("Camera does not expose a PC capture destination.");
+        if (group.DestinationToSave == destination) return;
+        group.DestinationToSave = (sbyte)destination;
+        Check(sgm_SetCamDataGrp3(ref info, ref group), "sgm_SetCamDataGrp3");
+        System.Threading.Thread.Sleep(250);
+        Check(sgm_GetCamDataGrp3(ref info, out group), "sgm_GetCamDataGrp3 verification");
+        if (group.DestinationToSave != destination) throw new InvalidOperationException("Camera did not accept capture destination 0x" + destination.ToString("X2") + " (reported 0x" + ((byte)group.DestinationToSave).ToString("X2") + ").");
+    }
+    static void ConfigureStillCapture(ref SdkInfo info, byte imageQuality) {
+        DataGroup2 group;
+        Check(sgm_GetCamDataGrp2(ref info, out group), "sgm_GetCamDataGrp2");
+        if ((group.FieldPresent1 & 0x01) != 0) group.DriveMode = 0x01;
+        if ((group.FieldPresent1 & 0x02) != 0) group.SpecialMode = 0x02;
+        if ((group.FieldPresent2 & 0x40) != 0) group.Resolution = 0x01;
+        if (imageQuality != 0 && (group.FieldPresent2 & 0x80) != 0) group.ImageQuality = (sbyte)imageQuality;
+        Check(sgm_SetCamDataGrp2(ref info, ref group), "sgm_SetCamDataGrp2");
+    }
+    static byte GetOperationPermission(ref SdkInfo info) {
+        IfdArray permission;
+        Check(sgm_GetCamOpPermission(ref info, out permission), "sgm_GetCamOpPermission");
+        try {
+            int size = Marshal.SizeOf(typeof(ImageFileDirectory));
+            for (int i = 0; i < permission.DirectoryCount; i++) {
+                var entry = (ImageFileDirectory)Marshal.PtrToStructure(IntPtr.Add(permission.Directory, i * size), typeof(ImageFileDirectory));
+                if (entry.TagId == 0x0001 && entry.Value != IntPtr.Zero && entry.Count > 0) return Marshal.ReadByte(entry.Value);
+            }
+            throw new InvalidDataException("Camera operation permission was missing from the SDK response.");
+        } finally {
+            if (permission.Directory != IntPtr.Zero) try { sgm_FreeArrayMemory(ref permission); } catch {}
+        }
+    }
+    static void SelectPcOperation(ref SdkInfo info) {
+        byte current = GetOperationPermission(ref info);
+        if (current == 0x00 || current == 0x80) return;
+        IntPtr value = Marshal.AllocHGlobal(1);
+        IntPtr directory = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(ImageFileDirectory)));
+        try {
+            Marshal.WriteByte(value, 0x00);
+            var entry = new ImageFileDirectory { TagId = 0x0001, Type = 0x0001, Count = 1, Value = value };
+            Marshal.StructureToPtr(entry, directory, false);
+            var permission = new IfdArray { DirectoryCount = 1, Directory = directory };
+            Check(sgm_SetCamOpPermission(ref info, ref permission), "sgm_SetCamOpPermission");
+        } finally {
+            Marshal.FreeHGlobal(directory);
+            Marshal.FreeHGlobal(value);
+        }
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        byte verified;
+        do {
+            System.Threading.Thread.Sleep(200);
+            verified = GetOperationPermission(ref info);
+            if (verified == 0x00 || verified == 0x80) return;
+        } while (DateTime.UtcNow < deadline);
+        throw new InvalidOperationException("Camera did not enter PC-only operation mode (reported 0x" + verified.ToString("X2") + ").");
+    }
+    static byte GetStillMovieMode(ref SdkInfo info) {
+        IfdArray movie;
+        Check(sgm_GetCamDataGroupMovie(ref info, out movie), "sgm_GetCamDataGroupMovie");
+        try {
+            int size = Marshal.SizeOf(typeof(ImageFileDirectory));
+            for (int i = 0; i < movie.DirectoryCount; i++) {
+                var entry = (ImageFileDirectory)Marshal.PtrToStructure(IntPtr.Add(movie.Directory, i * size), typeof(ImageFileDirectory));
+                if (entry.TagId == 0x0001 && entry.Value != IntPtr.Zero && entry.Count > 0) return Marshal.ReadByte(entry.Value);
+            }
+            throw new InvalidDataException("Still/movie mode was missing from the SDK response.");
+        } finally {
+            if (movie.Directory != IntPtr.Zero) try { sgm_FreeArrayMemory(ref movie); } catch {}
+        }
+    }
+    static void SelectStillImageMode(ref SdkInfo info) {
+        if (GetStillMovieMode(ref info) == 0x01) return;
+        IntPtr value = Marshal.AllocHGlobal(1);
+        IntPtr directory = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(ImageFileDirectory)));
+        try {
+            Marshal.WriteByte(value, 0x01);
+            var entry = new ImageFileDirectory { TagId = 0x0001, Type = 0x0001, Count = 1, Value = value };
+            Marshal.StructureToPtr(entry, directory, false);
+            var movie = new IfdArray { DirectoryCount = 1, Directory = directory };
+            Check(sgm_SetCamDataGroupMovie(ref info, ref movie), "sgm_SetCamDataGroupMovie");
+        } finally {
+            Marshal.FreeHGlobal(directory);
+            Marshal.FreeHGlobal(value);
+        }
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        do {
+            System.Threading.Thread.Sleep(200);
+            if (GetStillMovieMode(ref info) == 0x01) return;
+        } while (DateTime.UtcNow < deadline);
+        throw new InvalidOperationException("Camera did not enter still-image mode.");
     }
     static void WaitForCapture(ref SdkInfo info, byte imageId) {
         IntPtr statusBuffer = Marshal.AllocHGlobal(64 * 1024);
         try {
             var deadline = DateTime.UtcNow.AddSeconds(45);
+            CaptureStatus last = new CaptureStatus();
             while (DateTime.UtcNow < deadline) {
                 int received; Check(sgm_GetCamStatus2(ref info, 0, 0, 0, statusBuffer, 64 * 1024, out received), "sgm_GetCamStatus2");
                 CaptureStatus status; Check(sgm_GetCamCaptStatus(ref info, imageId, out status), "sgm_GetCamCaptStatus");
+                last = status;
+                if (status.ImageId != imageId) { System.Threading.Thread.Sleep(150); continue; }
                 if (status.Status == 0x0005 || status.Status == 0x8003) return;
-                if (status.Status >= 0x6001 && status.Status <= 0x6FFF) throw new InvalidOperationException("Camera capture failed (status 0x" + status.Status.ToString("X4") + ").");
+                if (status.Status >= 0x6001 && status.Status <= 0x6FFF) throw new InvalidOperationException("Camera capture failed (status 0x" + status.Status.ToString("X4") + ", image ID " + status.ImageId + ", DB " + status.DatabaseHead + "-" + status.DatabaseTail + ", destination 0x" + status.Destination.ToString("X2") + ").");
                 System.Threading.Thread.Sleep(150);
             }
-            throw new TimeoutException("Timed out waiting for the camera to finish the image.");
+            throw new TimeoutException("Timed out waiting for camera image ID " + imageId + " (last status 0x" + last.Status.ToString("X4") + ", camera image ID " + last.ImageId + ", DB " + last.DatabaseHead + "-" + last.DatabaseTail + ", destination 0x" + last.Destination.ToString("X2") + ").");
         } finally { Marshal.FreeHGlobal(statusBuffer); }
     }
     static SdkInfo Open(string sdkDirectory, string serial) {
@@ -217,8 +375,39 @@ public static class MotkSigmaSdk {
         try { sgm_CamClose(ref info); } catch {}
     }
 
-    public static void Probe(string sdkDirectory, string serial) {
-        var info = Open(sdkDirectory, serial); Close(ref info);
+    public static string[] Probe(string sdkDirectory, string serial) {
+        var info = Open(sdkDirectory, serial);
+        var config = new IfdArray();
+        try {
+            Check(sgm_ConfigAPI(ref info, out config), "sgm_ConfigAPI details");
+            string model = "SIGMA camera", firmware = "unknown";
+            int size = Marshal.SizeOf(typeof(ImageFileDirectory));
+            for (int i = 0; i < config.DirectoryCount; i++) {
+                var entry = (ImageFileDirectory)Marshal.PtrToStructure(IntPtr.Add(config.Directory, i * size), typeof(ImageFileDirectory));
+                if (entry.Value == IntPtr.Zero || entry.Count == 0 || entry.Count > 512) continue;
+                if (entry.TagId != 0x0001 && entry.TagId != 0x0003) continue;
+                var bytes = new byte[entry.Count]; Marshal.Copy(entry.Value, bytes, 0, bytes.Length);
+                int end = Array.IndexOf(bytes, (byte)0); if (end < 0) end = bytes.Length;
+                string value = System.Text.Encoding.ASCII.GetString(bytes, 0, end).Trim();
+                if (entry.TagId == 0x0001 && value.Length > 0) model = value;
+                if (entry.TagId == 0x0003 && value.Length > 0) firmware = value;
+            }
+            DataGroup1 group1; Check(sgm_GetCamDataGrp1(ref info, out group1), "sgm_GetCamDataGrp1 diagnostics");
+            DataGroup2 group2; Check(sgm_GetCamDataGrp2(ref info, out group2), "sgm_GetCamDataGrp2 diagnostics");
+            DataGroup3 group3; Check(sgm_GetCamDataGrp3(ref info, out group3), "sgm_GetCamDataGrp3 diagnostics");
+            return new[] {
+                model, firmware,
+                GetStillMovieMode(ref info).ToString(),
+                ((byte)group2.DriveMode).ToString(), ((byte)group2.SpecialMode).ToString(),
+                ((byte)group2.ExposureMode).ToString(), ((byte)group2.ImageQuality).ToString(),
+                ((byte)group3.DestinationToSave).ToString(), GetOperationPermission(ref info).ToString(),
+                ((byte)group1.MediaStatus).ToString(), group1.MediaFreeSpace.ToString(),
+                ((byte)group1.FrameBufferState).ToString(), ((byte)group1.BatteryState).ToString()
+            };
+        } finally {
+            if (config.Directory != IntPtr.Zero) try { sgm_FreeArrayMemory(ref config); } catch {}
+            Close(ref info);
+        }
     }
 
     public static void Preview(string sdkDirectory, string serial, string output) {
@@ -237,10 +426,14 @@ public static class MotkSigmaSdk {
         } finally { Close(ref info); }
     }
 
-    public static string[] Capture(string sdkDirectory, string serial, string outputDirectory, string baseName) {
+    public static string[] Capture(string sdkDirectory, string serial, string outputDirectory, string baseName, byte destination, byte imageQuality) {
         Directory.CreateDirectory(outputDirectory);
         var info = Open(sdkDirectory, serial);
         try {
+            SelectPcOperation(ref info);
+            SelectStillImageMode(ref info);
+            ConfigureStillCapture(ref info, imageQuality);
+            SelectCaptureDestination(ref info, destination);
             ClearPendingCaptures(ref info);
             byte imageId = CaptureDatabase(ref info).DatabaseTail;
             var snap = new SnapState { CaptureMode = 0x02, CaptureAmount = 0x01 };
@@ -307,8 +500,8 @@ public static class MotkSigmaSdk {
 
     switch ($Command) {
         'probe' {
-            [MotkSigmaSdk]::Probe($sdkDir, $resolvedSerial)
-            Write-Result @{ ok = $true; camera = 'SIGMA fp' }
+            $details = [MotkSigmaSdk]::Probe($sdkDir, $resolvedSerial)
+            Write-Result @{ ok = $true; camera = $details[0]; firmware = $details[1]; stillMovie = [int]$details[2]; driveMode = [int]$details[3]; specialMode = [int]$details[4]; exposureMode = [int]$details[5]; imageQuality = [int]$details[6]; destination = [int]$details[7]; operationPermission = [int]$details[8]; mediaStatus = [int]$details[9]; mediaFreeShots = [int]$details[10]; frameBuffer = [int]$details[11]; battery = [int]$details[12] }
         }
         'preview' {
             if (-not $Output) { throw '-Output is required for preview.' }
@@ -318,7 +511,7 @@ public static class MotkSigmaSdk {
         'capture' {
             if (-not $OutputDir -or -not $BaseName) { throw '-OutputDir and -BaseName are required for capture.' }
             if ($BaseName -notmatch '^kdr_[0-9]{8}_[0-9]{6}_[0-9]{4}$') { throw 'Unsafe capture base name.' }
-            $files = [MotkSigmaSdk]::Capture($sdkDir, $resolvedSerial, $OutputDir, $BaseName)
+            $files = [MotkSigmaSdk]::Capture($sdkDir, $resolvedSerial, $OutputDir, $BaseName, [byte]$Destination, [byte]$ImageQuality)
             Write-Result @{ ok = $true; files = @($files) }
         }
     }

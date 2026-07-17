@@ -91,7 +91,7 @@ if (-not (Test-Path -LiteralPath $configPath)) {
     busPort = 8793
     statusPort = 8794
     productionRoot = (Join-Path $dataPath 'production')
-    captureInbox = (Join-Path $dataPath 'production\.companion-capture')
+    captureInbox = (Join-Path $dataPath 'production\Camera Originals')
     tokenStore = (Join-Path $dataPath 'config\pairing-token.json')
     jobStore = (Join-Path $dataPath 'state\jobs.jsonl')
     logsDir = (Join-Path $dataPath 'logs')
@@ -119,8 +119,26 @@ if (-not (Test-Path -LiteralPath $configPath)) {
 # Updating the former flat beta layout changes only this installed-code pointer.
 $installedConfig = Get-Content -Raw -LiteralPath $configPath | ConvertFrom-Json
 $expectedRecipes = Join-Path $installPath '_internal\app\recipes'
+$configChanged = $false
 if ([string]$installedConfig.recipesDir -ne $expectedRecipes) {
   $installedConfig.recipesDir = $expectedRecipes
+  $configChanged = $true
+}
+$legacyCapture = [System.IO.Path]::GetFullPath([string]$installedConfig.captureInbox).TrimEnd('\')
+if ([System.IO.Path]::GetFileName($legacyCapture) -eq '.companion-capture') {
+  $visibleCapture = Join-Path ([System.IO.Path]::GetFullPath([string]$installedConfig.productionRoot).TrimEnd('\')) 'Camera Originals'
+  if (Test-Path -LiteralPath $legacyCapture -PathType Container) {
+    if (Test-Path -LiteralPath $visibleCapture) {
+      $visibleCapture = Join-Path ([System.IO.Path]::GetDirectoryName($visibleCapture)) "Camera Originals (migrated $([DateTime]::UtcNow.ToString('yyyyMMddHHmmss')))"
+    }
+    Move-Item -LiteralPath $legacyCapture -Destination $visibleCapture
+  } else {
+    New-Item -ItemType Directory -Force -Path $visibleCapture | Out-Null
+  }
+  $installedConfig.captureInbox = $visibleCapture
+  $configChanged = $true
+}
+if ($configChanged) {
   $installedConfig | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $configPath -Encoding utf8
 }
 

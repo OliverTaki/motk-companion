@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 [CmdletBinding()]
 param(
-  [string]$Version = '0.4.0-beta.4',
+  [string]$Version = '0.4.0-beta.5',
   [string]$OutputRoot = '',
   [string]$RuntimeCache = '',
   [long]$SourceDateEpoch = 0,

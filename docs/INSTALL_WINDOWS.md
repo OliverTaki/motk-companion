@@ -14,10 +14,18 @@ Center has only two large normal-use actions:
   removes the fragment immediately, and connects automatically.
 - **FILES** opens the exact local production folder.
 
+Camera files are stored in the visible **Camera Originals** subfolder. Existing
+beta installs migrate the former hidden `.companion-capture` folder without
+deleting its contents.
+
 The extracted download shows only the installer and `_internal`. The installed
 application shows only `MOTK Companion.exe` and `_internal`. Storage, camera,
 SIGMA SDK selection, manual pairing for another device, and Media Tools remain
 behind the settings control.
+
+Pressing **SAVE** after changing the camera or SIGMA SDK restarts only the local
+Companion services. The Control Center stays open and the selected backend is
+active before the next SHOOT session.
 
 It is safe to run the installer or updater while Companion is open. The package
 stops only its own installed processes before the directory swap. A normal

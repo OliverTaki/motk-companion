@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.4.0-beta.5 - 2026-07-17
+
+- Restarts only the Companion services after saving a changed camera backend or
+  SDK path, so the Control Center no longer says SIGMA while a previous dummy
+  bridge keeps running.
+- Makes camera originals visible in `Camera Originals` below the chosen FILES
+  root. Updating safely migrates the former hidden `.companion-capture` folder.
+- Corrects the SIGMA SDK's misspelled capture-database export, initializes the
+  fp's still/PC capture state explicitly, and exposes camera diagnostics without
+  redistributing vendor binaries.
+- Pairs with the MOTK Shoot capture transaction fix: a failed physical shutter
+  no longer leaves a false frame or advances the frame counter.
+
 ## 0.4.0-beta.4 - 2026-07-16
 
 - Replaces separate Start-menu actions and the text-heavy setup form with one
