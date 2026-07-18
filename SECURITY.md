@@ -1,7 +1,6 @@
 # Security policy
 
-MOTK Companion is not yet generally released. Until the public repository and
-private advisory channel exist, do not publish suspected vulnerabilities or
+MOTK Companion is a public beta. Do not publish suspected vulnerabilities or
 credentials in an issue, discussion, screenshot, interaction log, or chat.
 Provide the owner with the affected version, reproduction steps using invented
 data, impact, and whether a secret may have been exposed.

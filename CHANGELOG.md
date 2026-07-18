@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+- Adds one reproducible software-regression entry point and runs the common
+  camera-adapter contract through SIGMA, gPhoto2, and digiCamControl wrappers.
+- Reconciles public capabilities, supported-environment, security, and
+  contribution documentation with the released beta.9 implementation and
+  recorded SIGMA fp acceptance evidence.
+
+## 0.4.0-beta.9 - 2026-07-18
+
+- Merges ISO Auto into the normal ISO choice, keeping the camera's accepted
+  state visible instead of presenting a separate conflicting switch.
+- Reverts rejected session settings and continues live view with a clear
+  configuration warning instead of leaving preview unusable.
+
+## 0.4.0-beta.8 - 2026-07-18
+
+- Starts and remains pairable when a configured SIGMA camera is off or
+  disconnected; physical operations probe the camera when requested.
+
+## 0.4.0-beta.7 - 2026-07-18
+
+- Registers the per-user `motk-companion://` launcher and prevents duplicate
+  Control Center instances, enabling one-click startup from hosted MOTK Shoot.
+
+## 0.4.0-beta.6 - 2026-07-18
+
+- Adds SIGMA exposure, image, storage, and focus control through the
+  user-supplied licensed SDK.
+- Fixes native still transfer framing and padding so downloaded JPEG bytes are
+  preserved exactly, then records physical SIGMA fp still acceptance.
+
 ## 0.4.0-beta.5 - 2026-07-17
 
 - Restarts only the Companion services after saving a changed camera backend or

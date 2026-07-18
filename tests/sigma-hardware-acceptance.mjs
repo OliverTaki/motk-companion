@@ -78,7 +78,7 @@ try {
   const paths = new Set(listed.configs.map((config) => config.path));
   for (const path of [
     '/sigma/exposure/mode', '/sigma/exposure/shutter', '/sigma/exposure/aperture',
-    '/sigma/exposure/iso-auto', '/sigma/image/white-balance', '/sigma/image/color-mode',
+    '/sigma/exposure/iso', '/sigma/image/white-balance', '/sigma/image/color-mode',
     '/sigma/image/quality', '/sigma/storage/destination',
   ]) assert.ok(paths.has(path), `missing setting ${path}`);
 
@@ -86,7 +86,7 @@ try {
     ['/sigma/exposure/mode', 'M'],
     ['/sigma/exposure/shutter', '1/15'],
     ['/sigma/exposure/aperture', 'f/2.8'],
-    ['/sigma/exposure/iso-auto', 'Auto'],
+    ['/sigma/exposure/iso', 'Auto'],
     ['/sigma/image/white-balance', 'Auto'],
     ['/sigma/image/color-mode', 'Standard'],
     ['/sigma/image/quality', 'JPEG Fine'],

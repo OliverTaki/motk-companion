@@ -2,7 +2,7 @@
 # MOTK Companion
 
 MOTK Companion is the local connector for MOTK production tools. It hosts the
-authenticated local bus and will provide small, independently runnable camera,
+authenticated local bus and provides independently runnable camera,
 filesystem, encoding, upload, automation, assembly, and playout capabilities.
 
 This is the public beta source for MOTK Companion. The beta is free software
@@ -11,6 +11,25 @@ Physical camera, NAS service-context, and long-duration display certification
 remain model- and workflow-specific.
 
 ## Current capabilities
+
+| Area | What is implemented | Evidence boundary |
+|---|---|---|
+| Control Center | One normal-use Windows surface for Shoot, Files, Settings, pairing, and Media Tools | Automated install, launch, settings, running-update, rollback, and uninstall tests |
+| Local security | Loopback-only authenticated bus, exact hosted origin, tab-scoped browser pairing | Token, origin, supervisor, and packaging regression tests |
+| Camera | Browser/UVC through Shoot; native SIGMA fp preview, settings, and still transfer; gPhoto2 and digiCamControl adapter paths | SIGMA fp is physically verified for the recorded workflow. Other brands remain model-specific until physical acceptance is recorded |
+| Originals and folders | Explicit Camera Originals folder, safe production tree, create-new collision naming, raw/original boundaries | Safe-filesystem, supervisor, end-to-end, and physical SIGMA capture tests |
+| Media and automation | Media Job 1.0 cutting, encoding, upload, post-capture recipes, assembly, playout, and Kdenlive project generation | Deterministic synthetic regression; optional external Kdenlive render and physical/NAS endurance are separate gates |
+| Control plane | Project-scoped command claim, execution, acknowledgement, retry, audit, D1 isolation, and Google Sheets write-through | Local Worker, Sheets, and 20-project/800-event isolation tests |
+
+Run the complete hardware-free gate with one command:
+
+```text
+powershell -NoProfile -ExecutionPolicy Bypass -File tests\run-software-regression.ps1 -IncludePackaging
+```
+
+Physical-camera, remote-production, and long-duration soak acceptance are
+deliberately separate. A passing software gate never upgrades an untested
+camera model or storage environment to hardware verified.
 
 ## Windows quick start
 
